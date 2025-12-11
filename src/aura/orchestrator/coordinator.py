@@ -63,6 +63,8 @@ class Orchestrator:
         user_input: str,
         user_id: str = "default",
         conversation_history: list[dict[str, str]] | None = None,
+        context_limit: int | None = None,
+        enable_l2_analysis: bool | None = None,
     ) -> str:
         """
         Full orchestrated query processing.
@@ -114,7 +116,11 @@ class Orchestrator:
         )
 
         # Step 5: Generate response (L3)
-        response = await self.llm_layers.l3_synthesis(synthesis_context)
+        context_window_size = context_limit if context_limit is not None else 20
+        response = await self.llm_layers.l3_synthesis(
+            synthesis_context,
+            max_history_messages=context_window_size,
+        )
 
         # Step 6: Coherence check
         # TODO: Implement coherence validation
@@ -132,9 +138,46 @@ class Orchestrator:
         )
 
         # Step 7: Trigger L2 async analysis (fire-and-forget)
-        # TODO: Queue L2 analysis task
+        # Only if enabled (default: True)
+        if enable_l2_analysis is None or enable_l2_analysis:
+            import asyncio
+            asyncio.create_task(self._async_l2_analysis(
+                user_input=user_input,
+                aura_response=response,
+                emotional_before=emotional_state,
+            ))
 
         return response
+    
+    async def _async_l2_analysis(
+        self,
+        user_input: str,
+        aura_response: str,
+        emotional_before: Any,
+    ) -> None:
+        """
+        Run L2 post-response analysis in background.
+        
+        Non-blocking metacognitive analysis for learning and improvement.
+        """
+        try:
+            # Get post-response emotional state
+            emotional_after = await self.emotion_engine.get_current_state()
+            
+            # Run L2 deep analysis
+            analysis = await self.llm_layers.l2_reasoning({
+                'user_input': user_input,
+                'aura_response': aura_response,
+                'emotion_before': emotional_before.vector.model_dump(),
+                'emotion_after': emotional_after.vector.model_dump(),
+            })
+            
+            self.logger.info(f"L2 post-analysis complete: {analysis.get('analysis', '')[:100]}...")
+            
+            # TODO: Extract patterns and send to learning engine when pattern detection is ready
+            
+        except Exception as e:
+            self.logger.error(f"L2 analysis failed: {e}")
 
     async def stream_query(
         self,

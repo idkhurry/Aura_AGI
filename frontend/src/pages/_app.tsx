@@ -26,39 +26,39 @@ interface MyAppProps extends AppProps {
 function LogHandler() {
   useEffect(() => {
     // Import socket service dynamically to avoid SSR issues
-    const { getSocket } = require('../services/socketService');
-    const socket = getSocket();
+    import('../services/socketService').then(({ getSocket }) => {
+      const socket = getSocket();
 
-    // Function to format server logs for the browser console
-    const handleServerLog = (logData: any) => {
-      if (!logData) return;
-      
-      // Format depends on whether it's an important log or not
-      if (typeof logData === 'string' && logData.includes('IMPORTANT:')) {
-        // Extract the actual message from the IMPORTANT: prefix
-        const message = logData.replace('IMPORTANT:', '').trim();
-        console.log(`%c[SERVER] ${message}`, 'color: #0066cc; font-weight: bold;');
-      } else if (typeof logData === 'string' && logData.includes('WARNING')) {
-        console.warn(`[SERVER WARNING] ${logData}`);
-      } else if (typeof logData === 'string' && logData.includes('ERROR')) {
-        console.error(`[SERVER ERROR] ${logData}`);
-      } else if (typeof logData === 'object') {
-        // For error objects or complex structures
-        console.debug('[SERVER Debug]', logData);
-      } else {
-        console.debug(`[SERVER] ${logData}`);
-      }
-    };
-
-    // Set up socket.io event listener for server logs
-    if (socket) {
-      socket.on('server_log', handleServerLog);
-      
-      // Clean up on component unmount
-      return () => {
-        socket.off('server_log', handleServerLog);
+      // Function to format server logs for the browser console
+      const handleServerLog = (logData: unknown) => {
+        if (!logData) return;
+        
+        // Format depends on whether it's an important log or not
+        if (typeof logData === 'string' && logData.includes('IMPORTANT:')) {
+          // Extract the actual message from the IMPORTANT: prefix
+          const message = logData.replace('IMPORTANT:', '').trim();
+          console.log(`%c[SERVER] ${message}`, 'color: #0066cc; font-weight: bold;');
+        } else if (typeof logData === 'string' && logData.includes('WARNING')) {
+          console.warn(`[SERVER WARNING] ${logData}`);
+        } else if (typeof logData === 'string' && logData.includes('ERROR')) {
+          console.error(`[SERVER ERROR] ${logData}`);
+        } else if (typeof logData === 'object') {
+          // For error objects or complex structures
+          console.debug('[SERVER Debug]', logData);
+        } else {
+          console.debug(`[SERVER] ${logData}`);
+        }
       };
-    }
+
+      // Set up socket.io event listener for server logs
+      if (socket) {
+        socket.on('server_log', handleServerLog);
+      }
+    }).catch((err) => {
+      console.error('Failed to load socket service:', err);
+    });
+
+    // No cleanup needed as we're not tracking the socket reference
   }, []);
 
   // This component doesn't render anything

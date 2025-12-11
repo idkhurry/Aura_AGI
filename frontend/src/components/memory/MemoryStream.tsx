@@ -141,7 +141,7 @@ export default function MemoryStream({ memories, maxEntries = 10 }: Props) {
                 <div className="hidden group-hover:block mt-1 pt-1 border-t border-gray-800 text-[8px] text-gray-500">
                   <span className="font-bold">EMOTIONAL_SIG:</span>{' '}
                   {Object.entries(memory.emotional_signature)
-                    .filter(([_, v]) => v > 0.3)
+                    .filter(([, v]) => v > 0.3)
                     .map(([k, v]) => `${k}:${v.toFixed(2)}`)
                     .join(', ') || 'neutral'}
                 </div>

@@ -42,6 +42,10 @@ class ChatRequest(BaseModel):
     user_id: str = Field(default="default")
     conversation_history: list[ChatMessage] = Field(default_factory=list)
     stream: bool = Field(default=False, description="Stream response")
+    
+    # Advanced options (from frontend settings)
+    context_limit: int | None = Field(default=None, ge=5, le=999, description="Max conversation history")
+    enable_l2: bool | None = Field(default=None, description="Enable L2 post-analysis")
 
 
 class ChatResponse(BaseModel):
@@ -74,11 +78,13 @@ async def send_message(request: ChatRequest) -> ChatResponse:
             for msg in request.conversation_history
         ]
 
-        # Process through orchestrator
+        # Process through orchestrator with optional settings
         response = await orchestrator.process_query(
             user_input=request.message,
             user_id=request.user_id,
             conversation_history=history,
+            context_limit=request.context_limit,
+            enable_l2_analysis=request.enable_l2,
         )
 
         # Get current emotional state for response

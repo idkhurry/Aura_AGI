@@ -228,7 +228,7 @@ class ApiService {
     }
   }
 
-  async getAgentConfig(id: string): Promise<any> {
+  async getAgentConfig(id: string): Promise<Record<string, unknown>> {
     try {
       const response = await this.authenticatedRequest(`${API_URL}/config/agent/${id}`);
       return response.json();
@@ -238,7 +238,7 @@ class ApiService {
     }
   }
 
-  async updateAgentConfig(id: string, config: any): Promise<any> {
+  async updateAgentConfig(id: string, config: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const response = await this.authenticatedRequest(`${API_URL}/config/agent/${id}`, {
         method: 'PUT',

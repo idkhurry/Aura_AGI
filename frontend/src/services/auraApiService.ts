@@ -5,7 +5,7 @@
  */
 
 import { API_BASE_URL } from '@/config';
-import type { EmotionState, ChatMessage, Memory, AuraStatus } from '@/types/aura';
+import type { EmotionState, Memory } from '@/types/aura';
 
 const API_URL = API_BASE_URL;
 
@@ -14,6 +14,9 @@ export interface SendMessageRequest {
   user_id?: string;
   conversation_history?: Array<{ role: string; content: string }>;
   stream?: boolean;
+  // Advanced options
+  context_limit?: number;      // Max conversation history messages
+  enable_l2?: boolean;          // Enable L2 post-analysis
 }
 
 export interface SendMessageResponse {
@@ -65,6 +68,9 @@ class AuraApiService {
         user_id: request.user_id || 'default',
         conversation_history: request.conversation_history || [],
         stream: request.stream || false,
+        // Pass advanced options to backend
+        context_limit: request.context_limit,
+        enable_l2: request.enable_l2,
       }),
     });
 

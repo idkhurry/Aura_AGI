@@ -131,7 +131,7 @@ export interface Goal {
 export interface IdentityContext {
   narrative: string;
   values: { [key: string]: number };
-  preferences: { [key: string]: any };
+  preferences: { [key: string]: unknown };
   version: string;
 }
 
@@ -144,7 +144,7 @@ export interface Reflection {
   timestamp: string;
   summary: string;
   insights: string[];
-  emotional_trajectory_summary: any;
+  emotional_trajectory_summary: Record<string, unknown>;
   learning_patterns_identified: string[];
   shareable: boolean;
 }

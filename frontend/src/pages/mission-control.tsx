@@ -5,12 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import EmotionRadar from "@/components/emotion/EmotionRadar";
 import CognitiveStatus from "@/components/cognitive/CognitiveStatus";
 import MemoryStream from "@/components/memory/MemoryStream";
-import { AuraStatus, ChatMessage, EmotionState, CognitiveTrace, Memory, WebSocketEvent } from "@/types/aura";
+import SettingsPanel from "@/components/settings/SettingsPanel";
+import { AuraStatus, ChatMessage, EmotionState, Memory, WebSocketEvent } from "@/types/aura";
 import { Send, Terminal, Power, Activity, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auraApi } from "@/services/auraApiService";
+import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 
-export default function MissionControl() {
+function MissionControlContent() {
+  const { settings } = useSettings();
   const [input, setInput] = useState("");
   const [expandedPanel, setExpandedPanel] = useState<'emotion' | 'cognitive' | 'memory' | null>(null);
   
@@ -230,11 +233,13 @@ export default function MissionControl() {
         content: msg.content,
       }));
 
-      // Send message to backend
+      // Send message to backend with settings
       const response = await auraApi.sendMessage({
         message: messageContent,
-        user_id: 'default',
+        user_id: settings.commanderIdentity,
         conversation_history: conversationHistory,
+        context_limit: settings.contextWindowSize,
+        enable_l2: settings.enableL2Analysis,
       });
 
       const latency = Date.now() - startTime;
@@ -346,6 +351,11 @@ export default function MissionControl() {
           )}
         </div>
       </motion.header>
+
+      {/* SETTINGS PANEL */}
+      <div className="px-4 pt-4">
+        <SettingsPanel />
+      </div>
 
       {/* DASHBOARD GRID */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 overflow-hidden">
@@ -550,6 +560,15 @@ export default function MissionControl() {
         }
       `}</style>
     </main>
+  );
+}
+
+// Wrap with SettingsProvider
+export default function MissionControl() {
+  return (
+    <SettingsProvider>
+      <MissionControlContent />
+    </SettingsProvider>
   );
 }
 
