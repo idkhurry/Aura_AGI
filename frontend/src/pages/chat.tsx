@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   Box,
   Typography,
-  Paper,
   List,
   Divider,
   IconButton,
@@ -36,7 +35,6 @@ import {
   setActiveConversation, 
   addMessage, 
   startStreamingResponse, 
-  appendStreamToken, 
   endStreamingResponse, 
   clearMessages, 
   fetchMessages 
@@ -47,30 +45,39 @@ import CloseIcon from '@mui/icons-material/Close';
 import HomeIcon from '@mui/icons-material/Home';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DebugPanel from '@/components/debug/DebugPanel';
-import { useSettings } from '@/contexts/SettingsContext';
 import socketService, { StreamTokenData } from '@/services/socketService';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { apiService, Conversation } from '@/services/apiService';
+import { auraApi } from '@/services/auraApiService';
 import ChatIcon from '@mui/icons-material/Chat';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import ServerStatusAlert from '@/components/common/ServerStatusAlert';
+import { useServerStatus } from '@/contexts/ServerStatusContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { ParticlesBackground } from '@/components/animation/ParticlesBackground';
 import EditIcon from '@mui/icons-material/Edit';
 import StreamingVisualizer from '../components/debug/StreamingVisualizer';
-import PsychologyIcon from '@mui/icons-material/Psychology';
+import TerminalIcon from '@mui/icons-material/Terminal';
+import GoalPursuitModal from '@/components/goal/GoalPursuitModal';
+import type { Goal } from '@/types/aura';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Socket.IO backend URL no longer needed - using direct Aura API calls
+// const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 // Left sidebar content component
-const ConversationsList = ({ onNewChat }: { onNewChat: () => void }) => {
+const ConversationsList = React.memo(function ConversationsList({ onNewChat }: { onNewChat: () => void }) {
   const conversations = useAppSelector(state => state.chat.conversations);
   const activeConversationId = useAppSelector(state => state.chat.activeConversationId);
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [isLoading, setIsLoading] = useState(false);
   const [localConversations, setLocalConversations] = useState<Conversation[]>([]);
+  
+  // Get user settings for commander identity
+  const { settings } = useSettings();
+  const commanderIdentity = settings.commanderIdentity || "Mai";
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -99,18 +106,21 @@ const ConversationsList = ({ onNewChat }: { onNewChat: () => void }) => {
   // Extract conversation ID from router
   const routeConversationId = router.query.id as string;
   
-  // Fetch conversations - improved with direct API call as backup
+  // Track if window is visible to avoid polling when tab is hidden
+  const [isWindowVisible, setIsWindowVisible] = useState(true);
+  
+  // Initial fetch and setup visibility listener
   useEffect(() => {
     const fetchConversations = async () => {
       try {
         setIsLoading(true);
         
         // Attempt to fetch via Redux
-        await dispatch(fetchConversationsAction());
+        await dispatch(fetchConversationsAction(commanderIdentity));
         
         // As a backup, also fetch directly from API to ensure we have data
         // This helps when Redux store might not be properly updated
-        const directFetchedConversations = await apiService.getConversations();
+        const directFetchedConversations = await apiService.getConversations(commanderIdentity);
         
         if (directFetchedConversations && directFetchedConversations.length > 0) {
           setLocalConversations(directFetchedConversations);
@@ -133,13 +143,36 @@ const ConversationsList = ({ onNewChat }: { onNewChat: () => void }) => {
     
     fetchConversations();
     
-    // Setup interval to periodically refresh conversations
+    // Setup visibility change listener
+    const handleVisibilityChange = () => {
+      setIsWindowVisible(!document.hidden);
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [dispatch, routeConversationId, activeConversationId, commanderIdentity]);
+  
+  // Smart polling - only when window is visible and less frequently
+  useEffect(() => {
+    // Only poll if window is visible
+    if (!isWindowVisible) {
+      return;
+    }
+    
+    // Poll every 2 minutes (120000ms) instead of 30 seconds
+    // This reduces backend spam significantly
     const intervalId = setInterval(() => {
-      dispatch(fetchConversationsAction());
-    }, 30000); // Refresh every 30 seconds
+      // Only poll if window is still visible
+      if (!document.hidden) {
+        dispatch(fetchConversationsAction(commanderIdentity));
+      }
+    }, 120000); // 2 minutes
     
     return () => clearInterval(intervalId);
-  }, [dispatch, routeConversationId, activeConversationId]);
+  }, [dispatch, commanderIdentity, isWindowVisible]);
   
   // Combine Redux conversations with locally fetched ones
   const allConversations = useMemo(() => {
@@ -251,10 +284,10 @@ const ConversationsList = ({ onNewChat }: { onNewChat: () => void }) => {
         }
         
         // Refresh the conversations list
-        dispatch(fetchConversationsAction());
+        dispatch(fetchConversationsAction(commanderIdentity));
         
         // As a backup, also fetch directly from API
-        const updatedConversations = await apiService.getConversations();
+        const updatedConversations = await apiService.getConversations(commanderIdentity);
         setLocalConversations(updatedConversations);
         
         console.log(`Conversation deleted: ${deleteDialog.conversationId}`);
@@ -274,10 +307,10 @@ const ConversationsList = ({ onNewChat }: { onNewChat: () => void }) => {
         await apiService.updateConversation(renameDialog.conversationId, { title: newTitle.trim() });
         
         // Refresh the conversations list
-        dispatch(fetchConversationsAction());
+        dispatch(fetchConversationsAction(commanderIdentity));
         
         // As a backup, also fetch directly from API
-        const updatedConversations = await apiService.getConversations();
+        const updatedConversations = await apiService.getConversations(commanderIdentity);
         setLocalConversations(updatedConversations);
         
         console.log(`Conversation renamed: ${renameDialog.conversationId} to "${newTitle}"`);
@@ -505,7 +538,7 @@ const ConversationsList = ({ onNewChat }: { onNewChat: () => void }) => {
       </Dialog>
     </Box>
   );
-};
+});
 
 // FAISS activity indicator component
 const FAISSActivityIndicator = () => {
@@ -562,345 +595,6 @@ const FAISSActivityIndicator = () => {
   );
 };
 
-// Enhanced Agent Info Panel with IDs and memory debug
-const AgentInfoPanel = () => {
-  const { debugOptions } = useSettings();
-  const [isLoading, setIsLoading] = useState(false);
-  const [agentState, setAgentState] = useState({
-    agentId: '',
-    name: '',
-    lastActivity: '',
-    isLoading: false,
-    error: '',
-    emotions: {
-      joy: 0.7,
-      trust: 0.8,
-      fear: 0.1,
-      surprise: 0.3,
-      sadness: 0.2,
-      disgust: 0.1,
-      anger: 0.1,
-      anticipation: 0.6
-    },
-    memories: 0,
-    reflections: 0,
-    lastMemoryAccess: '',
-    memoryErrors: [] as string[] // Explicitly typing memoryErrors as string array
-  });
-  
-  // Get conversation ID from router
-  const router = useRouter();
-  const conversationId = router.query.id as string;
-  
-  // Store the last fetched agent ID to avoid redundant fetching
-  const lastFetchedAgentId = useRef('');
-  
-  // Fetch agent state on mount and when conversation changes
-  useEffect(() => {
-    if (!conversationId) return;
-    
-    let isMounted = true;
-    const fetchAgentState = async () => {
-      // Don't update isLoading state during the fetch process to avoid re-renders
-      if (isMounted) {
-        setIsLoading(true);
-      }
-      
-      try {
-        // Fetch conversation details to get agent ID
-        const conversation = await apiService.getConversation(conversationId);
-        
-        if (!conversation || !conversation.agent_id) {
-          if (isMounted) {
-            setAgentState(prev => ({
-              ...prev,
-              agentId: 'unknown',
-              name: 'No agent assigned',
-              lastActivity: '',
-              isLoading: false,
-              error: 'No agent ID found for this conversation',
-              memoryErrors: [] as string[]
-            }));
-            setIsLoading(false);
-          }
-          return;
-        }
-        
-        const agentId = conversation.agent_id;
-        
-        // Skip fetching if the agent ID hasn't changed
-        if (agentId === lastFetchedAgentId.current) {
-          if (isMounted) {
-            setIsLoading(false);
-          }
-          return;
-        }
-        
-        lastFetchedAgentId.current = agentId;
-        
-        // Now fetch the agent details and memory stats if we have an agent ID
-        let memories = 0;
-        const memoryErrors: string[] = []; // Explicitly typing memoryErrors as string array
-        let lastMemoryAccess = '';
-        
-        if (agentId && agentId !== 'unknown') {
-          try {
-            const memoryStats = await apiService.getAgentMemoryStats(agentId);
-            memories = memoryStats.count || 0;
-            lastMemoryAccess = memoryStats.last_access || 'Never';
-          } catch (error) {
-            console.error("Failed to fetch memory stats:", error);
-            memoryErrors.push(`Failed to fetch memory: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
-        }
-        
-        // Fetch the agent details if needed
-        const agent = await apiService.getAgent(agentId);
-        
-        if (isMounted) {
-          setAgentState(prev => ({
-            ...prev,
-            agentId,
-            name: agent?.name || 'Unnamed Agent',
-            lastActivity: new Date().toISOString(),
-            isLoading: false,
-            error: '',
-            // Keep emotions from previous state
-            memories,
-            reflections: 0,
-            lastMemoryAccess,
-            memoryErrors
-          }));
-          setIsLoading(false);
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error("Failed to fetch conversation or agent info:", error);
-          setAgentState(prev => ({
-            ...prev,
-            isLoading: false,
-            error: `Error: ${error instanceof Error ? error.message : 'Failed to load agent info'}`
-          }));
-          setIsLoading(false);
-        }
-      }
-    };
-    
-    fetchAgentState();
-    
-    // Refresh less frequently to avoid excessive API calls
-    const intervalId = setInterval(fetchAgentState, 30000); // Every 30 seconds instead of 15
-    
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, [conversationId]); // Only re-run when conversation ID changes
-  
-  // Listen for memory and emotion update events
-  useEffect(() => {
-    if (!conversationId || !agentState.agentId) return;
-    
-    // Define an inline type for memories
-    interface Memory {
-      agent_id?: string;
-      conversation_id?: string;
-      id?: string;
-    }
-    
-    const handleMemoryUpdate = (memories: Memory[]) => {
-      // If we received memories for the current conversation, update the count
-      if (memories.some(memory => memory.agent_id === agentState.agentId)) {
-        setAgentState(prev => ({
-          ...prev,
-          memories: (prev.memories || 0) + 1,
-          lastMemoryAccess: new Date().toISOString()
-        }));
-      }
-    };
-    
-    const handleEmotionUpdate = (data: {
-      conversation_id?: string;
-      agent_id?: string;
-      emotions?: Record<string, number>;
-    }) => {
-      if (data.conversation_id === conversationId || data.agent_id === agentState.agentId) {
-        setAgentState(prev => ({
-          ...prev,
-          emotions: {
-            ...prev.emotions,
-            ...data.emotions
-          }
-        }));
-      }
-    };
-    
-    // Subscribe to memory and emotion events
-    const memoryUnsubscribe = socketService.onMemoryUpdate(handleMemoryUpdate);
-    const emotionUnsubscribe = socketService.onEmotionUpdate(handleEmotionUpdate);
-    
-    return () => {
-      memoryUnsubscribe();
-      emotionUnsubscribe();
-    };
-  }, [conversationId, agentState.agentId]); // Only dependencies that matter
-  
-  // Get top emotions
-  const topEmotions = Object.entries(agentState.emotions)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-  
-  return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h6" gutterBottom>Agent Status</Typography>
-      
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress size={24} />
-        </Box>
-      ) : (
-        <>
-          {/* ID Debug Information */}
-          <Box sx={{ mb: 3, p: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>Debug IDs</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              <Typography variant="caption" sx={{ 
-                fontFamily: 'monospace', 
-                display: 'block',
-                wordBreak: 'break-all' 
-              }}>
-                <strong>Agent:</strong> {agentState.agentId || 'None'}
-              </Typography>
-              <Typography sx={{ 
-                fontSize: '0.75rem', 
-                color: 'text.secondary',
-                wordBreak: 'break-all' 
-              }}>
-                <strong>Conversation:</strong> {conversationId || 'None'}
-              </Typography>
-            </Box>
-          </Box>
-          
-          {debugOptions.showEmotions && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>Emotional State</Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {topEmotions.map(([emotion, value]) => (
-                  <Paper
-                    key={emotion}
-                    sx={{
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 4,
-                      backgroundColor: `rgba(0, 127, 255, ${value.toFixed(1)})`,
-                      color: 'white'
-                    }}
-                  >
-                    <Typography variant="caption">
-                      {emotion}: {(value * 100).toFixed(0)}%
-                    </Typography>
-                  </Paper>
-                ))}
-              </Box>
-            </Box>
-          )}
-          
-          {/* Memory Debugging Information */}
-          <Box sx={{ mb: 3, p: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>Memory Stats</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-              <Typography variant="body2">
-                <strong>Memories:</strong> {agentState.memories || 0}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Last Access:</strong> {agentState.lastMemoryAccess ? 
-                  new Date(agentState.lastMemoryAccess).toLocaleString() : 'Never'}
-              </Typography>
-              
-              {agentState.memoryErrors.length > 0 && (
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="error">Memory Errors:</Typography>
-                  <Box sx={{ 
-                    maxHeight: '100px', 
-                    overflowY: 'auto', 
-                    bgcolor: 'error.light', 
-                    p: 1, 
-                    borderRadius: 1,
-                    opacity: 0.9
-                  }}>
-                    {agentState.memoryErrors.map((error, index) => (
-                      <Typography key={index} variant="caption" sx={{ display: 'block', color: 'white' }}>
-                        {error}
-                      </Typography>
-                    ))}
-                  </Box>
-                </Box>
-              )}
-            </Box>
-          </Box>
-          
-          {/* Memory Debug Actions */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" gutterBottom>Debug Actions</Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Button 
-                variant="outlined" 
-                size="small"
-                onClick={async () => {
-                  try {
-                    await apiService.initializeMemoryForAgent(agentState.agentId);
-                    setAgentState(prev => ({
-                      ...prev,
-                      memoryErrors: []
-                    }));
-                  } catch (error) {
-                    setAgentState(prev => ({
-                      ...prev,
-                      memoryErrors: [...prev.memoryErrors, `Failed to initialize memory: ${error instanceof Error ? error.message : 'Unknown error'}`]
-                    }));
-                  }
-                }}
-              >
-                Initialize Memory
-              </Button>
-              
-              <Button 
-                variant="outlined" 
-                size="small"
-                onClick={async () => {
-                  try {
-                    // Refresh memory stats
-                    const memoryStats = await apiService.getAgentMemoryStats(agentState.agentId);
-                    setAgentState(prev => ({
-                      ...prev,
-                      memories: memoryStats.count || 0,
-                      lastMemoryAccess: memoryStats.last_access || prev.lastMemoryAccess
-                    }));
-                  } catch (error) {
-                    setAgentState(prev => ({
-                      ...prev,
-                      memoryErrors: [...prev.memoryErrors, `Failed to refresh: ${error instanceof Error ? error.message : 'Unknown error'}`]
-                    }));
-                  }
-                }}
-              >
-                Refresh Stats
-              </Button>
-            </Box>
-          </Box>
-          
-          {debugOptions.showReflections && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" gutterBottom>Reflections</Typography>
-              <Typography variant="body2">{agentState.reflections} insights generated</Typography>
-            </Box>
-          )}
-        </>
-      )}
-    </Box>
-  );
-};
-
 // Define message type to replace any
 interface Message {
   id: string;
@@ -917,13 +611,13 @@ interface ModelThinkingDisplayProps {
 }
 
 const ModelThinkingDisplay = ({ visible, activeTabIndex = 0 }: ModelThinkingDisplayProps) => {
-  const { debugStreams } = useSettings();
   const [activeTab, setActiveTab] = useState(activeTabIndex);
+  const [streams] = useState({ l1: '', l2: '', l3: '' });
   
   if (!visible) return null;
   
-  const streamTypes = ['orchestrator', 'reasoning', 'gemini'] as const;
-  const streamContent = debugStreams[streamTypes[activeTab]];
+  const streamTypes = ['l1', 'l2', 'l3'] as const;
+  const streamContent = streams[streamTypes[activeTab]];
   
   return (
     <Box sx={{ 
@@ -947,13 +641,13 @@ const ModelThinkingDisplay = ({ visible, activeTabIndex = 0 }: ModelThinkingDisp
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="Memory Retrieval" />
-          <Tab label="Reasoning" />
-          <Tab label="Gemini" />
+          <Tab label="L1: Instinct" />
+          <Tab label="L2: Reasoning" />
+          <Tab label="L3: Synthesis" />
         </Tabs>
       </Box>
       <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-        <StreamingVisualizer content={streamContent} height="100%" showRawOutput={true} />
+        <StreamingVisualizer content={streamContent} height="100%" />
       </Box>
     </Box>
   );
@@ -972,11 +666,16 @@ export default function ChatPage() {
   // Create one-time initialization flag
   const isInitialMount = useRef(true);
   
-  const { 
-    sendMessage, 
-    joinConversation, 
-    isConnected
-  } = useSocket();
+  // Socket.IO removed - using direct API calls via useSocket for emotion updates
+  useSocket();
+  
+  // Use server status for connection check (HTTP availability, not Socket.IO)
+  const { isServerAvailable } = useServerStatus();
+  const isConnected = isServerAvailable;  // Backend is available via HTTP
+  
+  // Get user settings for commander identity
+  const { settings } = useSettings();
+  const commanderIdentity = settings.commanderIdentity || "Mai";
   
   const dispatch = useAppDispatch();
   const { 
@@ -992,16 +691,32 @@ export default function ChatPage() {
     streamedContent: state.chat.streamedContent,
     activeConversationId: state.chat.activeConversationId
   }));
-  const { isDebugPanelOpen, toggleDebugPanel, updateDebugStream, debugStreams, debugOptions, updateDebugOption } = useSettings();
+  // Debug features for showing model thinking process
+  const [debugStreams, setDebugStreams] = useState({ l1: '', l2: '', l3: '' });
+  const [isDebugPanelOpen, setIsDebugPanelOpen] = useState(false);
+  
+  const toggleDebugPanel = () => setIsDebugPanelOpen(!isDebugPanelOpen);
+  const updateDebugStream = useCallback((layer: 'l1' | 'l2' | 'l3', content: string) => {
+    setDebugStreams(prev => ({ ...prev, [layer]: content }));
+  }, []);
   
   // Set default to true for non-mobile, so it's open by default
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(!isMobile);
   
+  // Goal pursuit modal state
+  const [goalPursuitModal, setGoalPursuitModal] = useState<{
+    open: boolean;
+    goal: Goal | null;
+  }>({
+    open: false,
+    goal: null,
+  });
+  
   // Helper function to fetch and join a conversation - wrap in useCallback
   const fetchAndJoinConversation = useCallback((id: string) => {
-    if (!id || !isConnected) return;
+    if (!id) return;
     
-    console.log(`Manually fetching and joining conversation: ${id}`);
+    console.log(`Fetching conversation: ${id}`);
     
     // Only clear if we're changing conversations
     if (activeConversationId !== id) {
@@ -1011,18 +726,15 @@ export default function ChatPage() {
     // Set as active conversation
     dispatch(setActiveConversation(id));
     
-    // Join via socket
-    joinConversation(id);
+    // Note: Socket.IO joinConversation removed - using direct API calls
     
     // First try to get the conversation details to ensure it exists
     apiService.getConversation(id)
       .then(conversation => {
         console.log(`Successfully loaded conversation: ${conversation.title}`);
         
-        // Fetch messages with a small delay to ensure socket connection is ready
-        setTimeout(() => {
-          dispatch(fetchMessages(id));
-        }, 200);
+        // Fetch messages
+        dispatch(fetchMessages(id));
       })
       .catch((error: Error) => {
         console.error(`Failed to load conversation ${id}:`, error);
@@ -1031,16 +743,14 @@ export default function ChatPage() {
           router.push('/chat', undefined, { shallow: true });
         }
       });
-  }, [isConnected, activeConversationId, dispatch, joinConversation, router]);
+  }, [activeConversationId, dispatch, router]);
   
-  // Join conversation when ID changes - fixed to prevent infinite loops
+  // Load conversation when ID changes
   useEffect(() => {
-    // Only join if we have both a conversationId and the socket is connected
-    // And only if we haven't already joined this conversation
-    if (conversationId && isConnected && hasJoinedConversation.current !== conversationId) {
-      console.log(`Joining conversation: ${conversationId}`);
+    if (conversationId && hasJoinedConversation.current !== conversationId) {
+      console.log(`Loading conversation: ${conversationId}`);
       
-      // Update the ref to track that we've joined this conversation
+      // Update the ref to track that we've loaded this conversation
       hasJoinedConversation.current = conversationId;
       
       // First clear any existing messages - only clear if we're switching conversations
@@ -1048,25 +758,22 @@ export default function ChatPage() {
         dispatch(clearMessages());
       }
       
-      // Join the conversation with socket
-      joinConversation(conversationId);
+      // Note: Socket.IO joinConversation removed - using direct API calls
       
       // Set active conversation in Redux
       dispatch(setActiveConversation(conversationId));
       
-      // Fetch messages for this conversation - add a short delay to ensure socket connection is ready
-      setTimeout(() => {
-        dispatch(fetchMessages(conversationId));
-      }, 100);
-    } else if (!conversationId && isConnected) {
-      // If we don't have a conversation ID but we're connected, clear messages
+      // Fetch messages for this conversation
+      dispatch(fetchMessages(conversationId));
+    } else if (!conversationId) {
+      // If we don't have a conversation ID, clear messages
       console.log('No active conversation, clearing messages');
       dispatch(clearMessages());
       
-      // Reset the joined conversation tracking
+      // Reset the loaded conversation tracking
       hasJoinedConversation.current = null;
     }
-  }, [conversationId, isConnected, joinConversation, dispatch, activeConversationId]);
+  }, [conversationId, dispatch, activeConversationId]);
   
   // Handle streaming tokens from different models
   useEffect(() => {
@@ -1083,29 +790,12 @@ export default function ChatPage() {
         return;
       }
       
-      // Update the appropriate debug stream
-      if (type === 'orchestrator' || type === 'reasoning' || type === 'gemini') {
-        // Get current content
-        const currentContent = type === 'orchestrator' 
-          ? debugStreams.orchestrator 
-          : type === 'reasoning' 
-          ? debugStreams.reasoning 
-          : debugStreams.gemini;
-        
-        // Update with new content
-        updateDebugStream(type, currentContent + token);
-      }
+      // Note: Streaming is now handled by the Aura API directly
+      // This socket-based streaming is kept for backward compatibility
+      // but may not be actively used with the new Aura backend
       
-      // For the gemini stream, we also update the chat UI
-      if (type === 'gemini') {
-        // Start streaming if this is the first token
-        if (!streamingResponse) {
-          dispatch(startStreamingResponse());
-        }
-        
-        // Append token to streamed content
-        dispatch(appendStreamToken(token));
-      }
+      // Update debug streams if needed (currently not used)
+      console.log(`Received stream token from ${type}:`, token);
     };
     
     // Set up socket listeners for streaming
@@ -1166,14 +856,107 @@ export default function ChatPage() {
     }
   }, [messages, streamedContent]);
   
-  const handleSendMessage = (content: string) => {
-    if (!content.trim()) return;
-    
-    // Only proceed if we have a conversation ID
-    if (!conversationId) {
-      console.error("No active conversation to send message to");
-      return;
+  // Check for goal pursuit request marker in Aura's response
+  const checkForGoalPursuitRequest = useCallback(async (responseText: string) => {
+    // Look for the marker: [GOAL_PURSUIT_REQUEST:goal_id]
+    const match = responseText.match(/\[GOAL_PURSUIT_REQUEST:([^\]]+)\]/);
+    if (match) {
+      const goalId = match[1];
+      
+      // Fetch the goal to show in modal
+      try {
+        const goals = await auraApi.getActiveGoals();
+        let goal = goals.find(g => g.goal_id === goalId);
+        
+        // Fallback: If exact ID match fails, try to match by name (resilient to LLM hallucinations)
+        if (!goal) {
+          // The LLM might use "goal:goal_name_snake_case" instead of the UUID
+          // Example: goal:review_recent_learnings -> review recent learnings
+          const potentialNamePart = goalId.replace(/^goal:/, '').replace(/_/g, ' ').toLowerCase();
+          
+          goal = goals.find(g => {
+            const goalName = g.name.toLowerCase();
+            return goalName === potentialNamePart || 
+                   goalName.includes(potentialNamePart) || 
+                   potentialNamePart.includes(goalName);
+          });
+          
+          if (goal) {
+            console.log(`Goal matched by name fallback: ${goalId} -> ${goal.goal_id} (${goal.name})`);
+          }
+        }
+        
+        if (goal) {
+          setGoalPursuitModal({
+            open: true,
+            goal: goal,
+          });
+        } else {
+          console.warn(`Goal ${goalId} not found in active goals`);
+        }
+      } catch (error) {
+        console.error('Error fetching goal for pursuit request:', error);
+      }
     }
+  }, []);
+  
+  // Handle goal pursuit confirmation
+  const handleGoalPursuitConfirm = useCallback(async (
+    goalId: string,
+    loopCount: number,
+    toolPermissions: string[],
+    allowInterruption: boolean
+  ) => {
+    // Close the modal immediately before starting the process if interruptible
+    // For non-interruptible, we might want to keep it open or show a progress indicator (future improvement)
+    setGoalPursuitModal(prev => ({ ...prev, open: false }));
+
+    // Show starting message
+    const startMessage: Message = {
+      id: Date.now().toString() + '_pursuit_start',
+      content: `🚀 Starting autonomous pursuit of goal... (${loopCount} cycles)`,
+      role: 'system',
+      timestamp: new Date().toISOString(),
+      conversationId: conversationId || 'temp',
+    };
+    dispatch(addMessage(startMessage));
+
+    try {
+      const result = await auraApi.pursueGoal(goalId, loopCount, toolPermissions, allowInterruption);
+      
+      if (result && result.success) {
+        // Add a message showing the pursuit results
+        const pursuitMessage: Message = {
+          id: Date.now().toString() + '_pursuit',
+          content: `✅ Autonomous pursuit complete: ${result.goal_name}\n` +
+                   `Progress: ${Math.round(result.initial_progress * 100)}% → ${Math.round(result.final_progress * 100)}% ` +
+                   `(+${Math.round(result.progress_delta * 100)}%)\n` +
+                   `Completed ${result.loop_count} reasoning cycles.`,
+          role: 'system',
+          timestamp: new Date().toISOString(),
+          conversationId: conversationId || 'temp',
+        };
+        
+        dispatch(addMessage(pursuitMessage));
+      } else {
+        throw new Error('Goal pursuit failed');
+      }
+    } catch (error) {
+      console.error('Error pursuing goal:', error);
+      // Add error message
+      const errorMessage: Message = {
+        id: Date.now().toString() + '_pursuit_error',
+        content: `❌ Failed to pursue goal autonomously: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        role: 'system',
+        timestamp: new Date().toISOString(),
+        conversationId: conversationId || 'temp',
+      };
+      dispatch(addMessage(errorMessage));
+    }
+  }, [conversationId, dispatch]);
+
+  const handleSendMessage = useCallback(async (content: string) => {
+    if (!content.trim()) return;
     
     try {
       // Add the user message to the state
@@ -1182,7 +965,7 @@ export default function ChatPage() {
         content,
         role: 'user',
         timestamp: new Date().toISOString(),
-        conversationId: conversationId
+        conversationId: conversationId || 'temp'
       };
       
       // Make sure messages is an array before dispatching
@@ -1193,13 +976,66 @@ export default function ChatPage() {
       // Add to Redux state for immediate UI update
       dispatch(addMessage(userMessage));
       
-      // Send via socket.io only (not via Redux thunk which might cause duplication)
-      // We'll get the response back via socket events
-      sendMessage(content, conversationId);
+      // Start streaming response
+      dispatch(startStreamingResponse());
+      
+      // Build conversation history from Redux messages
+      // Format: [{ role: 'user' | 'assistant', content: string }]
+      // Exclude the current message since it will be sent as user_input separately
+      // Filter to only include messages before the one we just added
+      const conversationHistory = messages
+        .filter((msg, index) => {
+          // Exclude the last message if it's the current user message we just added
+          if (index === messages.length - 1 && msg.role === 'user' && msg.content === content) {
+            return false;
+          }
+          return msg.role === 'user' || msg.role === 'assistant';
+        })
+        .map(msg => ({
+          role: msg.role === 'assistant' ? 'assistant' : 'user',
+          content: msg.content
+        }));
+      
+      // Log for debugging
+      console.log(`📤 Sending message with ${conversationHistory.length} messages in conversation history`);
+      if (conversationHistory.length > 0) {
+        console.log('Last 3 messages in history:', 
+          conversationHistory.slice(-3).map(m => `${m.role}: ${m.content.substring(0, 60)}...`));
+      }
+      
+      // Send to Aura backend and handle streaming response
+      // commanderIdentity comes from settings (e.g., "Mai") and is used as user_id for memory storage
+      const response = await auraApi.sendMessage({
+        message: content,
+        user_id: commanderIdentity,  // Commander identity from settings - used for memory storage
+        conversation_id: conversationId,
+        conversation_history: conversationHistory,  // Pass conversation history for context
+        context_limit: 50,
+        enable_l2: settings.enableL2Analysis ?? true  // Use settings, default to true
+      });
+      
+      // Handle the streamed response
+      if (response && response.response) {
+        // Add assistant message
+        const assistantMessage: Message = {
+          id: Date.now().toString() + '_assistant',
+          content: response.response,
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          conversationId: conversationId || 'temp'
+        };
+        
+        dispatch(addMessage(assistantMessage));
+        dispatch(endStreamingResponse());
+        
+        // Check for goal pursuit request in Aura's response
+        checkForGoalPursuitRequest(response.response);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
+      dispatch(endStreamingResponse());
     }
-  };
+  }, [conversationId, commanderIdentity, messages, dispatch, settings.enableL2Analysis, checkForGoalPursuitRequest]);
   
   // Simplify toggle handlers to avoid type issues
   const toggleLeftDrawer = () => {
@@ -1210,13 +1046,13 @@ export default function ChatPage() {
     toggleDebugPanel();
   };
   
-  const handleNewChat = async () => {
+  const handleNewChat = useCallback(async () => {
     try {
       // Clear messages first to prevent any issues when navigating
       dispatch(clearMessages());
       
-      // Create a new conversation
-      const newConversation = await apiService.createConversation("New Conversation");
+      // Create a new conversation with commander identity (no title = backend generates it)
+      const newConversation = await apiService.createConversation(undefined, commanderIdentity);
       
       if (!newConversation || !newConversation.id) {
         throw new Error("Failed to create conversation: Invalid response from server");
@@ -1231,7 +1067,7 @@ export default function ChatPage() {
       });
       
       // Update the state by fetching conversations again to ensure UI is updated
-      await dispatch(fetchConversationsAction());
+      await dispatch(fetchConversationsAction(commanderIdentity));
       
       // Set active conversation
       dispatch(setActiveConversation(newConversation.id));
@@ -1239,20 +1075,13 @@ export default function ChatPage() {
       // Navigate to new conversation with the ID in the URL
       await router.push(`/chat?id=${newConversation.id}`, undefined, { shallow: true });
       
-      // Join the new conversation with socket
-      if (isConnected) {
-        joinConversation(newConversation.id);
-      }
+      // Note: Socket.IO joinConversation removed - using direct API calls
       
-      // Force multiple re-fetches of conversations to update the left panel
-      // This helps with potential sync issues between backend and Redux state
+      // Single fetch after a short delay to update the left panel
+      // Reduced from multiple fetches to prevent spam
       setTimeout(() => {
-        dispatch(fetchConversationsAction());
-      }, 300);
-      
-      setTimeout(() => {
-        dispatch(fetchConversationsAction());
-      }, 1000);
+        dispatch(fetchConversationsAction(commanderIdentity));
+      }, 500);
       
     } catch (error) {
       console.error("Failed to create new conversation:", error instanceof Error ? error.message : String(error));
@@ -1260,7 +1089,7 @@ export default function ChatPage() {
       // Ensure we still have empty messages array even if creation failed
       dispatch(clearMessages());
     }
-  };
+  }, [dispatch, commanderIdentity, router]);
   
   // Add a ref to track initial setup
   const isInitialSetupDone = useRef(false);
@@ -1280,20 +1109,15 @@ export default function ChatPage() {
     }
   }, [isMobile]); // Remove toggleDebugPanel and isDebugPanelOpen from dependencies
   
-  // Add connection initialization at component mount with improved rerender control
+  // Socket.IO connection disabled - using native WebSocket and Aura API instead
+  // Note: The old Socket.IO real-time features are replaced by:
+  // 1. Direct API calls to Aura backend via auraApiService
+  // 2. Native WebSocket at /ws/emotion for emotion updates
   useEffect(() => {
-    // Initialize socket connection
-    if (!isConnected) {
-      console.log('Initializing socket connection...');
-      const socket = socketService;
-      socket.connect(BACKEND_URL);
-    }
-    
     // If we have a conversation ID from the URL but not in Redux, fetch it
     // Only do this on initial mount or when these values actually change
     if (conversationId && 
         (!activeConversationId || activeConversationId !== conversationId) && 
-        isConnected && 
         isInitialMount.current) {
       console.log(`Initial load with conversation ID from URL: ${conversationId}`);
       fetchAndJoinConversation(conversationId);
@@ -1301,9 +1125,9 @@ export default function ChatPage() {
     }
     
     return () => {
-      // No need to disconnect when unmounting - connection will be maintained
+      // Cleanup if needed
     };
-  }, [isConnected, conversationId, activeConversationId, fetchAndJoinConversation]);
+  }, [conversationId, activeConversationId, fetchAndJoinConversation]);
 
   return (
     <ParticlesBackground disableMouseTracking>
@@ -1471,12 +1295,12 @@ export default function ChatPage() {
                 </IconButton>
                 
                 <IconButton
-                  onClick={() => updateDebugOption('showModelThinking', !debugOptions.showModelThinking)}
-                  color={debugOptions.showModelThinking ? "primary" : "default"}
+                  onClick={() => router.push('/mission-control')}
+                  color="default"
                   size="small"
-                  title="Show Model Thinking"
+                  title="Mission Control"
                 >
-                  <PsychologyIcon />
+                  <TerminalIcon />
                 </IconButton>
               </Box>
             </Box>
@@ -1613,9 +1437,9 @@ export default function ChatPage() {
             
             {/* Add this before the MessageInput component */}
             <ModelThinkingDisplay 
-              visible={debugOptions.showModelThinking && 
-                (!!debugStreams.orchestrator || !!debugStreams.reasoning || !!debugStreams.gemini)}
-              activeTabIndex={1} // Default to reasoning tab
+              visible={false && 
+                (!!debugStreams.l1 || !!debugStreams.l2 || !!debugStreams.l3)}
+              activeTabIndex={2} // Default to L3 (synthesis) tab
             />
             
             {/* Input Area - Fixed at bottom */}
@@ -1700,7 +1524,6 @@ export default function ChatPage() {
               overflowX: 'hidden' 
             }}>
               <DebugPanel conversationId={conversationId} />
-              <AgentInfoPanel />
             </Box>
           </Drawer>
         </Box>
@@ -1744,6 +1567,14 @@ export default function ChatPage() {
             <MenuIcon />
           </Fab>
         )}
+        
+        {/* Goal Pursuit Modal */}
+        <GoalPursuitModal
+          open={goalPursuitModal.open}
+          goal={goalPursuitModal.goal}
+          onClose={() => setGoalPursuitModal({ open: false, goal: null })}
+          onConfirm={handleGoalPursuitConfirm}
+        />
       </Box>
     </ParticlesBackground>
   );

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useRef, useCallback } from 'react';
-import socketService from '@/services/socketService';
+// Socket.IO disabled - using native WebSocket at /ws/emotion instead
+// import socketService from '@/services/socketService';
 
 interface ServerStatusContextType {
   isServerAvailable: boolean;
@@ -50,9 +51,9 @@ export const ServerStatusProvider: React.FC<ServerStatusProviderProps> = ({ chil
     lastCheckedRef.current = now;
     
     try {
-      // Try to get a response from the API first
+      // Try to get a response from the API health endpoint
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat/status`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/health`,
         { 
           method: 'GET',
           headers: {
@@ -67,9 +68,11 @@ export const ServerStatusProvider: React.FC<ServerStatusProviderProps> = ({ chil
       if (response.ok) {
         setIsServerAvailable(true);
         
-        // Only try to connect socket if API is available
-        // But don't set socket status here - let the socket connection event handler do that
-        socketService.connect();
+        // Backend uses native WebSocket at /ws/emotion, not Socket.IO
+        // Socket.IO is not needed for core functionality
+        setIsSocketConnected(true);
+        
+        // Note: Socket.IO connection disabled - using native WebSocket at /ws/emotion instead
         
         return true;
       } else {
@@ -88,24 +91,15 @@ export const ServerStatusProvider: React.FC<ServerStatusProviderProps> = ({ chil
     }
   }, [isCheckingStatus, isServerAvailable]);
   
-  // Set up socket connection status tracking
-  useEffect(() => {
-    // Handle socket connection status
-    const handleConnectionChange = (connected: boolean) => {
-      console.log(`Socket connection status: ${connected}`);
-      setIsSocketConnected(connected);
-    };
-    
-    // Register for socket connection changes
-    const unsubscribe = socketService.onConnectionChange(handleConnectionChange);
-    
-    // Set initial socket connection status
-    setIsSocketConnected(socketService.isConnected());
-    
-    return () => {
-      unsubscribe();
-    };
-  }, []);
+  // Socket.IO connection tracking disabled - using native WebSocket instead
+  // useEffect(() => {
+  //   const handleConnectionChange = (connected: boolean) => {
+  //     setIsSocketConnected(connected);
+  //   };
+  //   const unsubscribe = socketService.onConnectionChange(handleConnectionChange);
+  //   setIsSocketConnected(socketService.isConnected());
+  //   return () => unsubscribe();
+  // }, []);
   
   // Set up periodic status checking
   useEffect(() => {

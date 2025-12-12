@@ -84,10 +84,10 @@ class ApiService {
   }
 
   // Conversation methods
-  async getConversations(): Promise<Conversation[]> {
+  async getConversations(userId: string = "default"): Promise<Conversation[]> {
     try {
-      console.log("Fetching conversations from:", `${API_URL}/api/conversations/`);
-      const response = await this.authenticatedRequest(`${API_URL}/api/conversations/`);
+      console.log("Fetching conversations from:", `${API_URL}/api/conversations/?user_id=${userId}`);
+      const response = await this.authenticatedRequest(`${API_URL}/api/conversations/?user_id=${userId}`);
       
       if (!response.ok) {
         console.error(`Error fetching conversations: ${response.status} ${response.statusText}`);
@@ -128,20 +128,23 @@ class ApiService {
   }
 
   async getConversation(id: string): Promise<Conversation> {
-    const response = await this.authenticatedRequest(`${API_URL}/conversations/${id}`);
+    const response = await this.authenticatedRequest(`${API_URL}/api/conversations/${id}`);
     return response.json();
   }
 
-  async createConversation(title: string): Promise<Conversation> {
-    const response = await this.authenticatedRequest(`${API_URL}/conversations`, {
+  async createConversation(title?: string, userId: string = "default"): Promise<Conversation> {
+    const response = await this.authenticatedRequest(`${API_URL}/api/conversations`, {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ 
+        title: title || undefined, // Let backend generate if not provided
+        user_id: userId 
+      }),
     });
     return response.json();
   }
 
   async updateConversation(id: string, updates: { title?: string }): Promise<Conversation> {
-    const response = await this.authenticatedRequest(`${API_URL}/conversations/${id}`, {
+    const response = await this.authenticatedRequest(`${API_URL}/api/conversations/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
@@ -149,7 +152,7 @@ class ApiService {
   }
 
   async deleteConversation(id: string): Promise<void> {
-    await this.authenticatedRequest(`${API_URL}/conversations/${id}`, {
+    await this.authenticatedRequest(`${API_URL}/api/conversations/${id}`, {
       method: 'DELETE',
     });
   }
@@ -157,14 +160,14 @@ class ApiService {
   // Message methods
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
     const response = await this.authenticatedRequest(
-      `${API_URL}/conversations/${conversationId}/messages`
+      `${API_URL}/api/conversations/${conversationId}/messages`
     );
     return response.json();
   }
 
   async sendMessage(conversationId: string, content: string): Promise<ChatMessage> {
     const response = await this.authenticatedRequest(
-      `${API_URL}/conversations/${conversationId}/messages`,
+      `${API_URL}/api/conversations/${conversationId}/messages`,
       {
         method: 'POST',
         body: JSON.stringify({ content }),

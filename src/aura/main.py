@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -9,9 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from aura.api.routes import chat as chat_routes
+from aura.api.routes import conversations as conversations_routes
 from aura.api.routes import emotion as emotion_routes
+from aura.api.routes import goal as goal_routes
 from aura.api.routes import learning as learning_routes
 from aura.api.routes import memory as memory_routes
+from aura.logging_config import setup_logging_filters
 from aura.api.websocket import emotion_stream_endpoint
 from aura.config import settings
 from aura.db.client import get_db_client
@@ -47,11 +51,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     global emotion_engine, learning_engine, identity_engine, goal_engine, reflection_engine, message_bus, orchestrator
 
     logger.info("Starting Aura Backend v0.3.0 - PHASE 2+ (Higher Cognition)...")
+    
+    # Set up logging filters (silence health check spam)
+    setup_logging_filters()
 
-    # Initialize database connection
+    # Initialize database connection with retry logic
     db = get_db_client()
-    await db.connect()
-    logger.info("Database connection established")
+    max_retries = 5
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting database connection (attempt {attempt + 1}/{max_retries})...")
+            await db.connect()
+            logger.info("Database connection established")
+            break
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"Database connection failed: {e}. Retrying in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error(f"Failed to connect to database after {max_retries} attempts")
+                raise
 
     # Initialize message bus
     message_bus = MessageBus()
@@ -90,6 +111,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Initialize LLM Layers and Orchestrator
     llm_layers = LLMLayers()
+    
+    # Set LLM layers for Learning Engine (for background analysis)
+    learning_engine.set_llm_layers(llm_layers)
+    
+    # Set Identity Engine dependencies
+    identity_engine.set_dependencies(llm_layers)
+    
+    # Set Reflection Engine dependencies
+    reflection_engine.set_dependencies(llm_layers)
+    
+    # Set goal engine dependencies for LLM-based goal generation
+    goal_engine.set_dependencies(
+        llm_layers=llm_layers,
+        emotion_engine=emotion_engine,
+        learning_engine=learning_engine,
+        identity_engine=identity_engine,
+    )
+    
     orchestrator = Orchestrator(
         emotion_engine=emotion_engine,
         learning_engine=learning_engine,
@@ -104,6 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Set engine references in routes
     emotion_routes.set_emotion_engine(emotion_engine)
     learning_routes.set_learning_engine(learning_engine)
+    goal_routes.set_goal_engine(goal_engine)
     chat_routes.set_orchestrator(orchestrator)
 
     logger.info("=" * 60)
@@ -210,8 +250,10 @@ async def health_check() -> JSONResponse:
 # Register route modules
 app.include_router(emotion_routes.router, prefix="/emotion", tags=["emotion"])
 app.include_router(learning_routes.router, prefix="/learning", tags=["learning"])
+app.include_router(goal_routes.router, prefix="/goal", tags=["goal"])
 app.include_router(chat_routes.router, prefix="/chat", tags=["chat"])
 app.include_router(memory_routes.router, prefix="/memory", tags=["memory"])
+app.include_router(conversations_routes.router, prefix="/api/conversations", tags=["conversations"])
 
 # WebSocket endpoints
 @app.websocket("/ws/emotion")

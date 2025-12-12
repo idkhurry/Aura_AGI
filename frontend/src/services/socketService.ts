@@ -114,7 +114,7 @@ class SocketService {
     }
   }
 
-  connect(backendUrl: string = 'http://localhost:8000'): void {
+  connect(backendUrl: string = 'http://localhost:8080'): void {
     if (this.socket && this.socket.connected) {
       console.log('Socket already connected');
       this.notifyConnectionHandlers(true);

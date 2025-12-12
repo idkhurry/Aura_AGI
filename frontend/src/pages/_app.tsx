@@ -5,6 +5,7 @@ import { CacheProvider, EmotionCache } from '@emotion/react';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import Head from 'next/head';
+import { Geist, Geist_Mono } from "next/font/google";
 
 import createEmotionCache from '../utils/createEmotionCache';
 import '../utils/disable-isr-warnings';
@@ -15,6 +16,16 @@ import { ServerStatusProvider } from '../contexts/ServerStatusContext';
 import ServerStatusAlert from '../components/common/ServerStatusAlert';
 import '../styles/globals.css';
 
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
 // Client-side cache, shared for the whole session of the user in the browser
 const clientSideEmotionCache = createEmotionCache();
 
@@ -22,46 +33,10 @@ interface MyAppProps extends AppProps {
   emotionCache?: EmotionCache;
 }
 
-// Log Handler Component
+// Log Handler Component - Placeholder for future server log handling
 function LogHandler() {
-  useEffect(() => {
-    // Import socket service dynamically to avoid SSR issues
-    import('../services/socketService').then(({ getSocket }) => {
-      const socket = getSocket();
-
-      // Function to format server logs for the browser console
-      const handleServerLog = (logData: unknown) => {
-        if (!logData) return;
-        
-        // Format depends on whether it's an important log or not
-        if (typeof logData === 'string' && logData.includes('IMPORTANT:')) {
-          // Extract the actual message from the IMPORTANT: prefix
-          const message = logData.replace('IMPORTANT:', '').trim();
-          console.log(`%c[SERVER] ${message}`, 'color: #0066cc; font-weight: bold;');
-        } else if (typeof logData === 'string' && logData.includes('WARNING')) {
-          console.warn(`[SERVER WARNING] ${logData}`);
-        } else if (typeof logData === 'string' && logData.includes('ERROR')) {
-          console.error(`[SERVER ERROR] ${logData}`);
-        } else if (typeof logData === 'object') {
-          // For error objects or complex structures
-          console.debug('[SERVER Debug]', logData);
-        } else {
-          console.debug(`[SERVER] ${logData}`);
-        }
-      };
-
-      // Set up socket.io event listener for server logs
-      if (socket) {
-        socket.on('server_log', handleServerLog);
-      }
-    }).catch((err) => {
-      console.error('Failed to load socket service:', err);
-    });
-
-    // No cleanup needed as we're not tracking the socket reference
-  }, []);
-
-  // This component doesn't render anything
+  // Note: Server-side logging via WebSocket is not currently implemented
+  // To enable, add 'server_log' event to socketService and handle it here
   return null;
 }
 
@@ -84,6 +59,12 @@ export default function App(props: MyAppProps) {
         <meta name="description" content="Aura - Your versatile AI companion with advanced cognitive architecture" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+      <style jsx global>{`
+        :root {
+          --font-geist-sans: ${geistSans.style.fontFamily};
+          --font-geist-mono: ${geistMono.style.fontFamily};
+        }
+      `}</style>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
           <ThemeProvider theme={theme}>

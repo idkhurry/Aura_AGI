@@ -83,7 +83,7 @@ class MessageBus:
         # Log message
         self.logger.debug(
             f"Message published: {message.source} -> {message.targets} "
-            f"({message.message_type.value})"
+            f"({message.message_type})"  # Already a string (str, Enum)
         )
 
     async def _process_messages(self) -> None:

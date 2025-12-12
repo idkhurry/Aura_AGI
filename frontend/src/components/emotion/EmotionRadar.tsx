@@ -12,6 +12,7 @@ interface Props {
 
 export default function EmotionRadar({ data, showPhysics = true }: Props) {
   // Transform 8 core emotions to chart data
+  // Note: "anticipation" is not in the 27D model, replaced with "interest" which is a valid emotion
   const chartData = [
     { subject: 'Joy', value: data.joy * 100, fullMark: 100 },
     { subject: 'Trust', value: data.trust * 100, fullMark: 100 },
@@ -20,7 +21,7 @@ export default function EmotionRadar({ data, showPhysics = true }: Props) {
     { subject: 'Sadness', value: data.sadness * 100, fullMark: 100 },
     { subject: 'Disgust', value: data.disgust * 100, fullMark: 100 },
     { subject: 'Anger', value: data.anger * 100, fullMark: 100 },
-    { subject: 'Anticipation', value: data.anticipation * 100, fullMark: 100 },
+    { subject: 'Interest', value: (data.interest || 0) * 100, fullMark: 100 },
   ];
 
   // Color based on valence
@@ -104,22 +105,22 @@ export default function EmotionRadar({ data, showPhysics = true }: Props) {
         >
           <div className="bg-black/60 border border-green-900/50 rounded px-2 py-1 flex-1">
             <span className="text-green-600">VALENCE:</span>{' '}
-            <span className={data.valence > 0 ? 'text-green-400' : 'text-red-400'}>
-              {data.valence.toFixed(3)}
+            <span className={(data.valence ?? 0) > 0 ? 'text-green-400' : 'text-red-400'}>
+              {(data.valence ?? 0).toFixed(3)}
             </span>
           </div>
           <div className="bg-black/60 border border-green-900/50 rounded px-2 py-1 flex-1">
             <span className="text-green-600">AROUSAL:</span>{' '}
-            <span className="text-blue-400">{data.arousal.toFixed(3)}</span>
+            <span className="text-blue-400">{(data.arousal ?? 0).toFixed(3)}</span>
           </div>
           <div className="bg-black/60 border border-green-900/50 rounded px-2 py-1 flex-1">
             <span className="text-green-600">ENTROPY:</span>{' '}
-            <span className="text-yellow-400">{data.entropy.toFixed(3)}</span>
+            <span className="text-yellow-400">{(data.entropy ?? 0).toFixed(3)}</span>
           </div>
           {data.inertia !== undefined && (
             <div className="bg-black/60 border border-green-900/50 rounded px-2 py-1 flex-1">
               <span className="text-green-600">INERTIA:</span>{' '}
-              <span className="text-purple-400">{data.inertia.toFixed(3)}</span>
+              <span className="text-purple-400">{(data.inertia ?? 0).toFixed(3)}</span>
             </div>
           )}
         </motion.div>
@@ -129,8 +130,8 @@ export default function EmotionRadar({ data, showPhysics = true }: Props) {
       <div 
         className="absolute inset-0 rounded-lg pointer-events-none"
         style={{
-          boxShadow: `inset 0 0 ${data.arousal * 30}px ${colors.stroke}`,
-          opacity: data.arousal * 0.3,
+          boxShadow: `inset 0 0 ${(data.arousal ?? 0) * 30}px ${colors.stroke}`,
+          opacity: (data.arousal ?? 0) * 0.3,
         }}
       />
     </motion.div>

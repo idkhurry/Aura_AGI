@@ -52,6 +52,7 @@ async def get_recent_memories(
             query="",  # Empty query gets recent memories
             limit=limit,
             importance_min=importance_min,
+            user_id=user_id,  # Filter by user_id
         )
 
         return MemoryListResponse(
@@ -208,11 +209,11 @@ async def get_memory_stats() -> dict[str, Any]:
         
         # Get total count
         count_result = await db.query("SELECT count() FROM memory GROUP ALL")
-        total_count = count_result[0]["result"][0]["count"] if count_result and count_result[0]["result"] else 0
+        total_count = count_result[0]["count"] if count_result else 0
         
         # Get learned vs not learned
         learned_result = await db.query("SELECT count() FROM memory WHERE learned_from = true GROUP ALL")
-        learned_count = learned_result[0]["result"][0]["count"] if learned_result and learned_result[0]["result"] else 0
+        learned_count = learned_result[0]["count"] if learned_result else 0
         
         return {
             "success": True,

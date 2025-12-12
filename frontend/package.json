@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--require ./src/utils/patch-util-extend.js' next dev --turbopack",
-    "build": "NODE_OPTIONS='--require ./src/utils/patch-util-extend.js' next build",
-    "start": "NODE_OPTIONS='--require ./src/utils/patch-util-extend.js' next start",
+    "dev": "cross-env NODE_OPTIONS='--require ./src/utils/patch-util-extend.js' next dev --turbopack",
+    "build": "cross-env NODE_OPTIONS='--require ./src/utils/patch-util-extend.js' next build",
+    "start": "cross-env NODE_OPTIONS='--require ./src/utils/patch-util-extend.js' next start",
     "lint": "next lint"
   },
   "dependencies": {
@@ -42,6 +42,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
     "eslint-plugin-react-hooks": "^5.2.0",

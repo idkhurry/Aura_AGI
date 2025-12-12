@@ -10,35 +10,43 @@
 // ============================================
 
 export interface EmotionState {
-  // Core 8 (Plutchik) for Radar Visualization
+  // Primary Emotions (9)
+  love: number;
   joy: number;
+  interest: number;
   trust: number;
   fear: number;
-  surprise: number;
   sadness: number;
-  disgust: number;
   anger: number;
-  anticipation: number;
-
-  // Extended dimensions (Social, Cognitive, Aesthetic)
-  love?: number;
-  submission?: number;
-  awe?: number;
-  disapproval?: number;
-  remorse?: number;
-  contempt?: number;
-  aggressiveness?: number;
-  optimism?: number;
+  surprise: number;
+  disgust: number;
   
-  // Aesthetic emotions
-  beauty?: number;
-  serenity?: number;
+  // Aesthetic Emotions (6)
+  awe: number;
+  beauty: number;
+  wonder: number;
+  serenity: number;
+  melancholy: number;
+  nostalgia: number;
   
-  // Cognitive emotions
-  curiosity?: number;
-  confusion?: number;
-  interest?: number;
-  boredom?: number;
+  // Social Emotions (6)
+  empathy: number;
+  gratitude: number;
+  pride: number;
+  shame: number;
+  envy: number;
+  compassion: number;
+  
+  // Cognitive Emotions (6)
+  curiosity: number;
+  confusion: number;
+  certainty: number;
+  doubt: number;
+  fascination: number;
+  boredom: number;
+  
+  // Legacy: anticipation (mapped from interest/curiosity)
+  anticipation?: number;
   
   // Meta-State (Derived from 27D)
   current_state: string; // e.g., "Optimism", "Anxiety", "Curiosity"
@@ -121,11 +129,31 @@ export interface Goal {
   goal_id: string;
   name: string;
   description: string;
-  status: 'pending' | 'active' | 'completed' | 'cancelled';
+  goal_type: 'curiosity_driven' | 'user_requested' | 'maintenance' | 'learning_gap' | 'creative';
+  status: 'active' | 'completed' | 'cancelled' | 'paused';
   priority: number;
-  emotional_alignment: EmotionVector;
-  created_at: string;
-  parent_goal_id?: string;
+  progress: number;
+  emotional_alignment: Record<string, number>;
+  origin: string;
+  created: string;
+  updated: string;
+  completed?: string | null;
+  parent_goal_id?: string | null;
+  sub_goal_ids?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface GoalProposal {
+  name: string;
+  description: string;
+  priority: number;
+  reasoning: string;
+}
+
+export interface GoalContext {
+  active_goals: Goal[];
+  current_focus: Goal | null;
+  pending_proposals: GoalProposal[];
 }
 
 export interface IdentityContext {

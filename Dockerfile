@@ -21,7 +21,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
     "httpx>=0.27.0" \
     "python-dotenv>=1.0.0" \
     "python-multipart>=0.0.9" \
-    "websockets>=14.0"
+    "websockets>=14.0" \
+    "python-dateutil>=2.8.2"
 
 # Copy application source
 COPY src/ ./src/

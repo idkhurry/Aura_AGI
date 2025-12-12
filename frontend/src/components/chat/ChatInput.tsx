@@ -1,4 +1,4 @@
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, KeyboardEvent, memo, useRef, useEffect } from 'react';
 import { 
   Box, 
   TextField, 
@@ -20,7 +20,7 @@ interface ChatInputProps {
   placeholder?: string;
 }
 
-export default function ChatInput({ 
+const ChatInput = memo(function ChatInput({ 
   onSendMessage, 
   isLoading = false, 
   disabled = false,
@@ -28,6 +28,17 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Preserve focus when component re-renders
+  useEffect(() => {
+    if (isFocused && inputRef.current && document.activeElement !== inputRef.current) {
+      // Only restore focus if we were previously focused and the input is not disabled
+      if (!disabled && !isLoading) {
+        inputRef.current.focus();
+      }
+    }
+  }, [isFocused, disabled, isLoading]);
   
   const handleSendMessage = () => {
     if (message.trim()) {
@@ -76,6 +87,7 @@ export default function ChatInput({
     >
       <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
         <TextField
+          inputRef={inputRef}
           fullWidth
           multiline
           maxRows={4}
@@ -213,4 +225,6 @@ export default function ChatInput({
       </Box>
     </Paper>
   );
-} 
+});
+
+export default ChatInput; 

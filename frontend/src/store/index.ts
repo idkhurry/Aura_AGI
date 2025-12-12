@@ -5,9 +5,6 @@ import { createNoopStorage } from './noopStorage';
 
 import chatReducer from './slices/chatSlice';
 import emotionReducer from './slices/emotionSlice';
-import memoryReducer from './slices/memorySlice';
-import reflectionReducer from './slices/reflectionSlice';
-import uiReducer from './slices/uiSlice';
 
 // Create a storage that works in any environment
 const createSafeStorage = () => {
@@ -23,16 +20,13 @@ const createSafeStorage = () => {
 const persistConfig = {
   key: 'Aura-state',
   storage: createSafeStorage(),
-  whitelist: ['chat', 'ui'], // Only persist chat and ui state
-  blacklist: ['emotion', 'memory', 'reflection'], // Don't persist these states as they're fetched from backend
+  whitelist: ['chat'], // Only persist chat state
+  blacklist: ['emotion'], // Don't persist emotion - fetched from backend
 };
 
 const rootReducer = combineReducers({
   chat: chatReducer,
   emotion: emotionReducer,
-  memory: memoryReducer,
-  reflection: reflectionReducer,
-  ui: uiReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

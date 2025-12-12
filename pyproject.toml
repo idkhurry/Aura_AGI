@@ -19,6 +19,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.9",
     "websockets>=14.0",
+    "python-dateutil>=2.8.2",
 ]
 
 [project.optional-dependencies]

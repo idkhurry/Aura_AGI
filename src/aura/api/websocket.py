@@ -70,18 +70,33 @@ async def emotion_stream_endpoint(
     try:
         # Send initial state
         state = await emotion_engine.get_current_state()
+        vector_data = state.vector.model_dump()
+        
+        # Compute valence (positive - negative emotions) and arousal
+        positive_emotions = vector_data.get('joy', 0) + vector_data.get('love', 0) + vector_data.get('trust', 0) + vector_data.get('interest', 0)
+        negative_emotions = vector_data.get('fear', 0) + vector_data.get('sadness', 0) + vector_data.get('anger', 0) + vector_data.get('disgust', 0)
+        valence = (positive_emotions - negative_emotions) / 4.0  # Normalize to [-1, 1]
+        
+        # Arousal is intensity of high-arousal emotions
+        arousal = (vector_data.get('surprise', 0) + vector_data.get('fear', 0) + vector_data.get('anger', 0) + vector_data.get('joy', 0)) / 4.0
+        
+        # Flatten structure to match frontend EmotionState interface
+        emotion_data = {
+            **vector_data,  # Spread all emotion dimensions (joy, trust, fear, etc.)
+            "current_state": state.description,  # Map description to current_state
+            "dominant": state.dominant[0],  # Most prominent emotion name
+            "timestamp": state.timestamp.isoformat(),
+            "volatility": state.volatility,
+            "valence": valence,  # Overall positivity [-1, 1]
+            "arousal": arousal,  # Activation level [0, 1]
+            "entropy": state.volatility,  # Use volatility as entropy proxy
+        }
+        
         await emotion_manager.send_to_client(
             websocket,
             {
-                "type": "emotion_state",
-                "timestamp": state.timestamp.isoformat(),
-                "vector": state.vector.model_dump(),
-                "dominant": {
-                    "emotion": state.dominant[0],
-                    "intensity": state.dominant[1],
-                },
-                "description": state.description,
-                "volatility": state.volatility,
+                "type": "emotion_update",
+                "data": emotion_data
             },
         )
 

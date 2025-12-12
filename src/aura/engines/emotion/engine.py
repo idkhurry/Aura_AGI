@@ -66,13 +66,6 @@ class EmotionEngine(BaseEngine):
         # Database
         self.db = get_db_client()
 
-        # Message bus (will be set by orchestrator)
-        self._message_bus: Any = None
-
-    def set_message_bus(self, message_bus: Any) -> None:
-        """Set message bus for inter-engine communication."""
-        self._message_bus = message_bus
-
     async def initialize(self) -> None:
         """Initialize engine resources."""
         self.logger.info("Initializing Emotion Engine...")
@@ -93,6 +86,14 @@ class EmotionEngine(BaseEngine):
         """Execute one emotion engine cycle."""
         now = datetime.utcnow()
         dt = (now - self._last_tick_time).total_seconds()
+        
+        # Clamp dt to prevent issues with very large or very small values
+        # If dt is too large (e.g., server was down), cap it at 10 seconds
+        # If dt is too small (e.g., processing delay), use the intended tick rate
+        if dt > 10.0:
+            dt = 10.0
+        elif dt < 0.1:
+            dt = self.tick_rate
 
         # Apply physics
         self.previous_vector = self.current_vector.model_copy()
@@ -195,7 +196,7 @@ class EmotionEngine(BaseEngine):
                 """,
                 {"limit": limit},
             )
-            return result[0]["result"] if result and result[0]["result"] else []
+            return result if result else []
         except Exception as e:
             self.logger.error(f"Failed to retrieve history: {e}")
             return []
@@ -268,13 +269,31 @@ class EmotionEngine(BaseEngine):
                 """
             )
 
-            if result and result[0]["result"]:
-                last_state = result[0]["result"][0]
+            if result:
+                last_state = result[0]
                 vector_data = last_state.get("vector", {})
-                self.current_vector = EmotionVector(**vector_data)
+                loaded_vector = EmotionVector(**vector_data)
+                
+                # Safety check: if any emotion is extremely high (>0.95), reset to baseline
+                # This prevents corrupted or extreme values from persisting
+                needs_reset = False
+                for emotion, value in loaded_vector.model_dump().items():
+                    if value > 0.95:
+                        self.logger.warning(
+                            f"Detected extreme emotion value: {emotion}={value:.2f}. "
+                            "Resetting to baseline to prevent stuck states."
+                        )
+                        needs_reset = True
+                        break
+                
+                if needs_reset:
+                    self.current_vector = self.config.baseline.model_copy()
+                    self.logger.info("Reset to baseline due to extreme values")
+                else:
+                    self.current_vector = loaded_vector
+                
                 self.previous_vector = self.current_vector.model_copy()
                 self.logger.info("Loaded previous emotional state from database")
         except Exception as e:
             self.logger.error(f"Failed to load state: {e}")
             raise
-

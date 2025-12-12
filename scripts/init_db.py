@@ -52,8 +52,8 @@ async def main():
 
     # Verify emotion table
     result = await db.query("SELECT count() FROM emotion GROUP ALL")
-    if result and result[0]["result"]:
-        count = result[0]["result"][0].get("count", 0)
+    if result:
+        count = result[0].get("count", 0)
         print(f"\nVerification: {count} emotions initialized")
 
     await db.close()

@@ -71,10 +71,10 @@ class SkillTreeManager:
             # Get current skill
             result = await self.db.select(skill_id)
 
-            if not result or not result[0]["result"]:
+            if not result:
                 raise ValueError(f"Skill not found: {skill_id}")
 
-            skill_data = result[0]["result"][0]
+            skill_data = result[0]
             rule_ids = skill_data.get("rule_ids", [])
 
             if rule_id not in rule_ids:
@@ -107,10 +107,10 @@ class SkillTreeManager:
         try:
             skill_result = await self.db.select(skill_id)
 
-            if not skill_result or not skill_result[0]["result"]:
+            if not skill_result:
                 return 0.0
 
-            skill_data = skill_result[0]["result"][0]
+            skill_data = skill_result[0]
 
             # Get sub-skills
             sub_skill_ids = skill_data.get("sub_skill_ids", [])
@@ -135,8 +135,8 @@ class SkillTreeManager:
                 rule_confidences = []
                 for rule_id in rule_ids:
                     rule_result = await self.db.select(rule_id)
-                    if rule_result and rule_result[0]["result"]:
-                        rule_data = rule_result[0]["result"][0]
+                    if rule_result:
+                        rule_data = rule_result[0]
                         rule_confidences.append(rule_data.get("confidence", 0.0))
 
                 avg_rule_confidence = (
@@ -174,10 +174,10 @@ class SkillTreeManager:
         try:
             skill_result = await self.db.select(root_skill_id)
 
-            if not skill_result or not skill_result[0]["result"]:
+            if not skill_result:
                 return {}
 
-            skill_data = skill_result[0]["result"][0]
+            skill_data = skill_result[0]
 
             tree = {
                 "skill_id": root_skill_id,
@@ -198,8 +198,8 @@ class SkillTreeManager:
             rule_ids = skill_data.get("rule_ids", [])
             for rule_id in rule_ids:
                 rule_result = await self.db.select(rule_id)
-                if rule_result and rule_result[0]["result"]:
-                    rule_data = rule_result[0]["result"][0]
+                if rule_result:
+                    rule_data = rule_result[0]
                     tree["rules"].append(
                         {
                             "rule_id": rule_id,
@@ -224,10 +224,10 @@ class SkillTreeManager:
 
             result = await self.db.query(query)
 
-            if not result or not result[0]["result"]:
+            if not result:
                 return []
 
-            return result[0]["result"]
+            return result
 
         except Exception as e:
             logger.error(f"Failed to get skills: {e}")

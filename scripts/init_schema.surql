@@ -1,6 +1,9 @@
 -- Aura Database Schema Initialization
 -- Based on PRD Section 8.1 + Learning FRD Section 7
 
+-- Select namespace and database
+USE NS aura DB main;
+
 -- ============================================================================
 -- EMOTION SYSTEM TABLES
 -- ============================================================================
@@ -46,11 +49,22 @@ DEFINE INDEX memory_embedding ON memory FIELDS embedding MTREE DIMENSION 1536 DI
 
 -- Conversation sessions
 DEFINE TABLE conversation SCHEMAFULL;
-DEFINE FIELD user_id ON conversation TYPE string;
-DEFINE FIELD started_at ON conversation TYPE datetime;
-DEFINE FIELD ended_at ON conversation TYPE option<datetime>;
+DEFINE FIELD title ON conversation TYPE string DEFAULT "New Conversation";
+DEFINE FIELD user_id ON conversation TYPE string DEFAULT "default";
+DEFINE FIELD created_at ON conversation TYPE string;
+DEFINE FIELD updated_at ON conversation TYPE string;
 DEFINE FIELD message_count ON conversation TYPE int DEFAULT 0;
-DEFINE FIELD initial_emotion ON conversation TYPE object DEFAULT {};
+DEFINE FIELD started_at ON conversation TYPE option<string>;
+DEFINE FIELD ended_at ON conversation TYPE option<string>;
+DEFINE FIELD initial_emotion ON conversation TYPE option<object>;
+
+-- Messages in conversations
+DEFINE TABLE message SCHEMAFULL;
+DEFINE FIELD conversation_id ON message TYPE string;
+DEFINE FIELD content ON message TYPE string;
+DEFINE FIELD role ON message TYPE string DEFAULT "user";
+DEFINE FIELD timestamp ON message TYPE string;
+DEFINE INDEX message_conversation_idx ON message FIELDS conversation_id;
 DEFINE FIELD final_emotion ON conversation TYPE object DEFAULT {};
 DEFINE FIELD summary ON conversation TYPE string DEFAULT "";
 DEFINE FIELD key_topics ON conversation TYPE array DEFAULT [];
@@ -428,4 +442,12 @@ CREATE identity:aura SET
         emotional_awareness: "developing",
         autonomy_level: "emerging"
     };
+
+-- ============================================================================
+-- SYSTEM STATS
+-- ============================================================================
+DEFINE TABLE stats SCHEMAFULL;
+DEFINE FIELD key ON stats TYPE string;
+DEFINE FIELD value ON stats TYPE number;
+DEFINE INDEX stats_key ON stats FIELDS key UNIQUE;
 

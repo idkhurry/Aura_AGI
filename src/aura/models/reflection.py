@@ -1,11 +1,42 @@
 """Reflection models (Reflection Engine)."""
 
 from datetime import datetime
-from typing import Any
-
 from pydantic import Field
-
 from aura.models.base import BaseModel
+from aura.models.identity import IdentityChange
+
+
+class ReflectionInsight(BaseModel):
+    """A specific insight from reflection."""
+
+    type: str = Field(..., description="emotional_pattern, learning_opportunity, etc.")
+    description: str
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    evidence: list[str] = Field(default_factory=list)
+    actionable: bool = False
+    priority: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class ReflectionPattern(BaseModel):
+    """A learned pattern detected during reflection."""
+    
+    description: str
+    confidence: float
+
+
+class EmotionalSummary(BaseModel):
+    """Summary of emotional state over the period."""
+    
+    states_count: int
+    dominant_emotion: str | None
+    emotion_distribution: dict[str, int]
+
+
+class GoalProgress(BaseModel):
+    """Summary of goal progress."""
+    
+    goals_updated: int
+    goals_completed: int
 
 
 class Reflection(BaseModel):
@@ -24,40 +55,28 @@ class Reflection(BaseModel):
     reflection_type: str = Field(..., description="daily, weekly, session")
 
     # Insights
-    insights: list[dict[str, Any]] = Field(
+    insights: list[ReflectionInsight] = Field(
         default_factory=list, description="Key learnings from period"
     )
 
-    patterns_found: list[dict[str, Any]] = Field(
+    patterns_found: list[ReflectionPattern] = Field(
         default_factory=list, description="Behavioral patterns detected"
     )
 
     # Summaries
-    emotional_summary: dict[str, Any] = Field(
-        default_factory=dict, description="Emotional trajectory"
+    emotional_summary: EmotionalSummary = Field(
+        ..., description="Emotional trajectory"
     )
 
-    goal_progress: dict[str, Any] = Field(
-        default_factory=dict, description="Progress on active goals"
+    goal_progress: GoalProgress = Field(
+        ..., description="Progress on active goals"
     )
 
-    identity_shifts: list[dict[str, Any]] = Field(
+    identity_shifts: list[IdentityChange] = Field(
         default_factory=list, description="Changes in self-concept"
     )
 
     # Proposals
-    proposals: list[dict[str, Any]] = Field(
+    proposals: list[str] = Field(
         default_factory=list, description="Suggested improvements"
     )
-
-
-class ReflectionInsight(BaseModel):
-    """A specific insight from reflection."""
-
-    insight_type: str
-    description: str
-    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
-    evidence: list[str] = Field(default_factory=list)
-    actionable: bool = False
-    priority: float = Field(default=0.5, ge=0.0, le=1.0)
-

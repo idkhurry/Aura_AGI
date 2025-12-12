@@ -1,6 +1,6 @@
 """Goal models (Goal Engine)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import Field
@@ -28,8 +28,8 @@ class Goal(BaseModel):
     status: Literal["active", "completed", "cancelled", "paused"] = "active"
     priority: float = Field(default=0.5, ge=0.0, le=1.0)
 
-    created: datetime = Field(default_factory=datetime.utcnow)
-    updated: datetime = Field(default_factory=datetime.utcnow)
+    created: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed: datetime | None = None
 
     # Hierarchy
@@ -58,7 +58,7 @@ class Task(BaseModel):
     goal_id: str
     description: str
     status: Literal["pending", "in_progress", "completed", "failed"] = "pending"
-    created: datetime = Field(default_factory=datetime.utcnow)
+    created: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed: datetime | None = None
     result: str | None = None
 
@@ -69,4 +69,8 @@ class GoalContext(BaseModel):
     active_goals: list[Goal] = Field(default_factory=list)
     current_focus: Goal | None = None
     pending_proposals: list[dict[str, Any]] = Field(default_factory=list)
+    pursuit_suggestions: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Goals that would benefit from autonomous pursuit"
+    )
 

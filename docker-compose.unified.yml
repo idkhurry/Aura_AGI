@@ -1,22 +1,20 @@
-version: '3.8'
-
 services:
   # SurrealDB - Graph + Vector Database
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: aura-database
+    user: "0:0"  # Run as root to avoid permission issues on Windows
     ports:
       - "8000:8000"
     volumes:
       - surrealdb_data:/data
-    command: start --log debug --user root --pass root file:///data/aura.db
+    command: start --log info --user root --pass root rocksdb:///data/aura.db
     networks:
       - aura-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    # Health check disabled - SurrealDB doesn't include curl/wget
+    # Backend will handle connection retries if DB isn't ready
+    # healthcheck:
+    #   test: ["NONE"]
 
   # Aura Backend - FastAPI + Cognitive Engines
   backend:
@@ -39,7 +37,7 @@ services:
       - ./scripts:/app/scripts
     depends_on:
       surrealdb:
-        condition: service_healthy
+        condition: service_started  # Changed from service_healthy (no health check on DB)
     networks:
       - aura-network
     command: uvicorn aura.main:app --host 0.0.0.0 --port 8080 --reload

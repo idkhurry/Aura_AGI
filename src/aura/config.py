@@ -15,11 +15,26 @@ class Settings(BaseSettings):
     )
 
     # SurrealDB Configuration
-    surreal_url: str = Field(default="ws://localhost:8000/rpc")
-    surreal_user: str = Field(default="root")
-    surreal_pass: str = Field(default="root")
-    surreal_ns: str = Field(default="aura")
-    surreal_db: str = Field(default="main")
+    surreal_url: str = Field(
+        default="ws://localhost:8000/rpc",
+        validation_alias="SURREAL_URL"
+    )
+    surreal_user: str = Field(
+        default="root",
+        validation_alias="SURREAL_USER"
+    )
+    surreal_pass: str = Field(
+        default="root",
+        validation_alias="SURREAL_PASS"
+    )
+    surreal_ns: str = Field(
+        default="aura",
+        validation_alias="SURREAL_NS"
+    )
+    surreal_db: str = Field(
+        default="main",
+        validation_alias="SURREAL_DB"
+    )
 
     # OpenRouter API Configuration
     openrouter_api_key: str = Field(default="")
@@ -41,6 +56,16 @@ class Settings(BaseSettings):
         validation_alias="AURA_L3_MODEL",
         description="L3 Synthesis Layer - Primary response generation",
     )
+    l4_model: str = Field(
+        default="qwen/qwen-2.5-72b-instruct",  # Excellent at structured JSON output, good balance of cost/quality
+        validation_alias="AURA_L4_MODEL",
+        description="L4 Emotion Analysis Layer - Emotion detection from conversation (async). Recommended: Qwen2.5 72B (best JSON), Claude Haiku (fast), or DeepSeek-V3.2 (premium).",
+    )
+    l5_model: str = Field(
+        default="google/gemini-flash-1.5",
+        validation_alias="AURA_L5_MODEL",
+        description="L5 Structure Layer - Specialized for JSON extraction, summarization, and structural tasks.",
+    )
 
     # Embeddings Configuration (for semantic search)
     embeddings_model: str = Field(
@@ -59,9 +84,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     api_host: str = Field(default="0.0.0.0")
     api_port: int = Field(default=8080)
+    app_timezone: str = Field(
+        default="UTC",
+        validation_alias="APP_TIMEZONE",
+        description="Timezone for the application (e.g., UTC, Europe/Paris, US/Pacific)",
+    )
 
     # Emotion Engine Configuration
-    emotion_tick_rate: float = Field(default=5.0, description="Seconds between emotion ticks")
+    emotion_tick_rate: float = Field(default=1.0, description="Seconds between emotion ticks")
     emotion_persistence_interval: float = Field(
         default=60.0, description="Seconds between emotion state saves"
     )
@@ -80,4 +110,9 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+# Debug: Log database config at startup
+import logging
+logger = logging.getLogger(__name__)
+logger.info(f"Database config loaded: url={settings.surreal_url}, user={settings.surreal_user}, ns={settings.surreal_ns}, db={settings.surreal_db}")
 

@@ -117,7 +117,7 @@ class EmotionState(BaseModel):
         default=1.0, ge=0.0, le=1.0, description="Emotional consistency over time"
     )
     description: str = Field(default="", description="Human-readable emotional description")
-    learning_influence: dict[str, Any] = Field(
+    learning_influence: dict[str, float | str | bool] = Field(
         default_factory=dict, description="Learning engine influence context"
     )
 
@@ -126,10 +126,11 @@ class EmotionPhysicsConfig(BaseModel):
     """Configuration for emotion physics parameters (Emotion FRD FR-EE-002)."""
 
     # Decay rates per category (per tick)
-    decay_rate_primary: float = Field(default=0.02, ge=0.0, le=1.0)
-    decay_rate_aesthetic: float = Field(default=0.005, ge=0.0, le=1.0)
-    decay_rate_social: float = Field(default=0.01, ge=0.0, le=1.0)
-    decay_rate_cognitive: float = Field(default=0.015, ge=0.0, le=1.0)
+    # Increased to allow faster decay from extreme values
+    decay_rate_primary: float = Field(default=0.05, ge=0.0, le=1.0)  # 5% per tick (was 2%)
+    decay_rate_aesthetic: float = Field(default=0.02, ge=0.0, le=1.0)  # 2% per tick (was 0.5%)
+    decay_rate_social: float = Field(default=0.03, ge=0.0, le=1.0)  # 3% per tick (was 1%)
+    decay_rate_cognitive: float = Field(default=0.04, ge=0.0, le=1.0)  # 4% per tick (was 1.5%)
 
     # Inertia (resistance to change)
     inertia_default: float = Field(default=0.3, ge=0.0, le=1.0)
@@ -137,8 +138,17 @@ class EmotionPhysicsConfig(BaseModel):
     inertia_low_arousal: float = Field(default=0.1, ge=0.0, le=1.0)
 
     # Tick rate
-    tick_rate_seconds: float = Field(default=5.0, gt=0.0)
+    tick_rate_seconds: float = Field(default=1.0, gt=0.0)
 
     # Baseline personality (resting state)
-    baseline: EmotionVector = Field(default_factory=EmotionVector)
+    baseline: EmotionVector = Field(default_factory=lambda: EmotionVector(
+        curiosity=0.3,
+        trust=0.2,
+        joy=0.15,
+        interest=0.25,
+        serenity=0.2,
+        love=0.05,  # Small baseline for love so it doesn't decay to zero
+        gratitude=0.05,  # Small baseline for gratitude
+        compassion=0.05,  # Small baseline for compassion
+    ))
 

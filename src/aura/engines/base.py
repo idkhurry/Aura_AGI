@@ -4,7 +4,10 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from aura.orchestrator.protocols import MessageBusProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,11 @@ class BaseEngine(ABC):
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
         self.logger = logging.getLogger(f"aura.engines.{engine_id}")
+        self._message_bus: "MessageBusProtocol | None" = None
+
+    def set_message_bus(self, message_bus: "MessageBusProtocol") -> None:
+        """Set message bus for inter-engine communication."""
+        self._message_bus = message_bus
 
     @abstractmethod
     async def initialize(self) -> None:
@@ -122,4 +130,3 @@ class BaseEngine(ABC):
             "state": self.state.value,
             "is_running": self.is_running,
         }
-

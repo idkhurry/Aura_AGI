@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Activity, Database, Sparkles, RefreshCw, TrendingUp, Eye } from 'lucide-react';
+import { Brain, Activity, Database, Sparkles, RefreshCw, Eye, Target } from 'lucide-react';
 import { auraApi } from '@/services/auraApiService';
-import type { EmotionState, Memory } from '@/types/aura';
+import { useSettings } from '@/contexts/SettingsContext';
+import type { EmotionState, Memory, Goal } from '@/types/aura';
 
 interface AuraInternals {
   emotion: EmotionState | null;
   memoryCount: number;
   recentMemories: Memory[];
+  activeGoals: Goal[];
   systemStatus: {
     online: boolean;
     dbConnected: boolean;
@@ -25,10 +27,12 @@ export interface DebugPanelProps {
 }
 
 export default function DebugPanel({ conversationId }: DebugPanelProps) {
+  const { settings } = useSettings();
   const [internals, setInternals] = useState<AuraInternals>({
     emotion: null,
     memoryCount: 0,
     recentMemories: [],
+    activeGoals: [],
     systemStatus: {
       online: false,
       dbConnected: false,
@@ -41,21 +45,27 @@ export default function DebugPanel({ conversationId }: DebugPanelProps) {
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   // Fetch all Aura internals
-  const fetchInternals = async () => {
+  const fetchInternals = useCallback(async () => {
     setInternals(prev => ({ ...prev, isLoading: true }));
 
     try {
+      // Use commander identity from settings to filter memories by user
+      const user_id = settings.commanderIdentity || undefined;
+      
       // Parallel fetch for performance
-      const [status, emotion, memories] = await Promise.all([
+      // Increased limit from 5 to 50 to show more memories
+      const [status, emotion, memories, goals] = await Promise.all([
         auraApi.getSystemStatus(),
         auraApi.getEmotionState(),
-        auraApi.getRecentMemories(5),
+        auraApi.getRecentMemories(50, user_id),  // Increased limit and pass user_id
+        auraApi.getActiveGoals(),  // Fetch active goals
       ]);
 
       setInternals({
         emotion,
         memoryCount: memories.length,
         recentMemories: memories,
+        activeGoals: goals,
         systemStatus: {
           online: status.healthy,
           dbConnected: status.database,
@@ -68,12 +78,12 @@ export default function DebugPanel({ conversationId }: DebugPanelProps) {
       console.error('Failed to fetch Aura internals:', error);
       setInternals(prev => ({ ...prev, isLoading: false }));
     }
-  };
+  }, [settings.commanderIdentity]);
 
   // Initial fetch
   useEffect(() => {
     fetchInternals();
-  }, [conversationId]);
+  }, [conversationId, fetchInternals]);
 
   // Auto-refresh every 5 seconds
   useEffect(() => {
@@ -81,7 +91,7 @@ export default function DebugPanel({ conversationId }: DebugPanelProps) {
 
     const interval = setInterval(fetchInternals, 5000);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, fetchInternals]);
 
   return (
     <div className="w-full h-full overflow-auto p-4 space-y-4 bg-black/20">
@@ -149,15 +159,53 @@ export default function DebugPanel({ conversationId }: DebugPanelProps) {
               <span className="text-gray-500">DOMINANT:</span>{' '}
               <span className="text-purple-300 font-bold">{internals.emotion.current_state}</span>
             </div>
-            <div className="grid grid-cols-4 gap-1 text-[10px] font-mono">
-              <EmotionBar label="JOY" value={internals.emotion.joy} />
-              <EmotionBar label="TRUST" value={internals.emotion.trust} />
-              <EmotionBar label="FEAR" value={internals.emotion.fear} />
-              <EmotionBar label="SURPRISE" value={internals.emotion.surprise} />
-              <EmotionBar label="SADNESS" value={internals.emotion.sadness} />
-              <EmotionBar label="DISGUST" value={internals.emotion.disgust} />
-              <EmotionBar label="ANGER" value={internals.emotion.anger} />
-              <EmotionBar label="ANTICIPATION" value={internals.emotion.anticipation} />
+            <div className="space-y-1 max-h-96 overflow-y-auto custom-scrollbar">
+              {/* Primary Emotions (9) */}
+              <div className="text-[9px] text-gray-500 font-mono mb-1">PRIMARY (9):</div>
+              <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
+                <EmotionBar label="LOVE" value={internals.emotion.love || 0} />
+                <EmotionBar label="JOY" value={internals.emotion.joy} />
+                <EmotionBar label="INTEREST" value={internals.emotion.interest || 0} />
+                <EmotionBar label="TRUST" value={internals.emotion.trust} />
+                <EmotionBar label="FEAR" value={internals.emotion.fear} />
+                <EmotionBar label="SADNESS" value={internals.emotion.sadness} />
+                <EmotionBar label="ANGER" value={internals.emotion.anger} />
+                <EmotionBar label="SURPRISE" value={internals.emotion.surprise} />
+                <EmotionBar label="DISGUST" value={internals.emotion.disgust} />
+              </div>
+              
+              {/* Aesthetic Emotions (6) */}
+              <div className="text-[9px] text-gray-500 font-mono mt-2 mb-1">AESTHETIC (6):</div>
+              <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
+                <EmotionBar label="AWE" value={internals.emotion.awe || 0} />
+                <EmotionBar label="BEAUTY" value={internals.emotion.beauty || 0} />
+                <EmotionBar label="WONDER" value={internals.emotion.wonder || 0} />
+                <EmotionBar label="SERENITY" value={internals.emotion.serenity || 0} />
+                <EmotionBar label="MELANCHOLY" value={internals.emotion.melancholy || 0} />
+                <EmotionBar label="NOSTALGIA" value={internals.emotion.nostalgia || 0} />
+              </div>
+              
+              {/* Social Emotions (6) */}
+              <div className="text-[9px] text-gray-500 font-mono mt-2 mb-1">SOCIAL (6):</div>
+              <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
+                <EmotionBar label="EMPATHY" value={internals.emotion.empathy || 0} />
+                <EmotionBar label="GRATITUDE" value={internals.emotion.gratitude || 0} />
+                <EmotionBar label="PRIDE" value={internals.emotion.pride || 0} />
+                <EmotionBar label="SHAME" value={internals.emotion.shame || 0} />
+                <EmotionBar label="ENVY" value={internals.emotion.envy || 0} />
+                <EmotionBar label="COMPASSION" value={internals.emotion.compassion || 0} />
+              </div>
+              
+              {/* Cognitive Emotions (6) */}
+              <div className="text-[9px] text-gray-500 font-mono mt-2 mb-1">COGNITIVE (6):</div>
+              <div className="grid grid-cols-3 gap-1 text-[10px] font-mono">
+                <EmotionBar label="CURIOSITY" value={internals.emotion.curiosity || 0} />
+                <EmotionBar label="CONFUSION" value={internals.emotion.confusion || 0} />
+                <EmotionBar label="CERTAINTY" value={internals.emotion.certainty || 0} />
+                <EmotionBar label="DOUBT" value={internals.emotion.doubt || 0} />
+                <EmotionBar label="FASCINATION" value={internals.emotion.fascination || 0} />
+                <EmotionBar label="BOREDOM" value={internals.emotion.boredom || 0} />
+              </div>
             </div>
             <div className="text-[10px] text-gray-500 font-mono mt-2">
               ENTROPY: {internals.emotion.entropy.toFixed(3)}
@@ -221,6 +269,51 @@ export default function DebugPanel({ conversationId }: DebugPanelProps) {
           <div className="text-[10px] text-gray-500 mt-2">
             Continuously extracting patterns from interactions...
           </div>
+        </div>
+      </motion.div>
+
+      {/* Goal Engine Status */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+        className="bg-black/40 border border-purple-900/50 rounded-lg p-3"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <Target size={16} className="text-purple-500" />
+          <h3 className="text-sm font-mono font-bold text-purple-400">GOAL_ENGINE</h3>
+        </div>
+        <div className="text-xs font-mono space-y-1">
+          <div>
+            <span className="text-gray-500">ACTIVE_GOALS:</span>{' '}
+            <span className="text-purple-300 font-bold">{internals.activeGoals.length}</span>
+          </div>
+          {internals.activeGoals.length > 0 && (
+            <div className="space-y-1 mt-2 max-h-32 overflow-y-auto custom-scrollbar">
+              {internals.activeGoals.slice(0, 3).map((goal, i) => (
+                <div
+                  key={goal.goal_id || i}
+                  className="text-[10px] font-mono text-purple-300 p-1.5 bg-black/30 rounded border border-purple-900/30"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold truncate">{goal.name}</span>
+                    <span className="text-purple-500">{(goal.priority * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="text-gray-400 text-[9px] truncate">
+                    {goal.description.substring(0, 50)}...
+                  </div>
+                  <div className="text-gray-500 text-[8px] mt-1">
+                    {goal.goal_type} • {Math.round(goal.progress * 100)}% complete
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {internals.activeGoals.length === 0 && (
+            <div className="text-[10px] text-gray-500 mt-2">
+              No active goals. Waiting for goal generation...
+            </div>
+          )}
         </div>
       </motion.div>
 

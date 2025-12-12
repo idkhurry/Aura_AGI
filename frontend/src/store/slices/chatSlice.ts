@@ -25,9 +25,9 @@ const initialState: ChatState = {
 // Async thunks for API interactions
 export const fetchConversations = createAsyncThunk(
   'chat/fetchConversations',
-  async (_, { rejectWithValue }) => {
+  async (userId: string = "default", { rejectWithValue }) => {
     try {
-      return await apiService.getConversations();
+      return await apiService.getConversations(userId);
     } catch (error) {
       return rejectWithValue((error as Error).message);
     }

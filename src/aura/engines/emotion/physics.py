@@ -162,6 +162,17 @@ EMOTION_CATEGORIES = {
     "boredom": "cognitive",
 }
 
+# Persistent emotions that decay much slower (love, trust, gratitude, etc.)
+# These emotions represent deep, lasting feelings that don't fade quickly
+PERSISTENT_EMOTIONS = {
+    "love": 0.001,      # 0.1% per tick - love stays
+    "trust": 0.0015,    # 0.15% per tick - trust builds slowly, fades slowly
+    "gratitude": 0.002, # 0.2% per tick - gratitude persists
+    "compassion": 0.002, # 0.2% per tick - compassion endures
+    "empathy": 0.0025,  # 0.25% per tick - empathy is stable
+    "nostalgia": 0.003, # 0.3% per tick - nostalgia lingers
+}
+
 
 class EmotionPhysics:
     """
@@ -209,12 +220,39 @@ class EmotionPhysics:
         # Step 1: Apply decay toward baseline
         for emotion, value in emotions.items():
             baseline_value = getattr(baseline, emotion, 0.0)
-            category = EMOTION_CATEGORIES.get(emotion, "primary")
-            decay_rate = self.decay_rates[category]
+            
+            # Check if this is a persistent emotion (love, trust, gratitude, etc.)
+            if emotion in PERSISTENT_EMOTIONS:
+                # Use much slower decay rate for persistent emotions
+                decay_rate = PERSISTENT_EMOTIONS[emotion]
+                # Persistent emotions don't get enhanced decay for extreme values
+                # They should stay high if they're high
+            else:
+                # Regular emotions use category-based decay
+                category = EMOTION_CATEGORIES.get(emotion, "primary")
+                decay_rate = self.decay_rates[category]
 
+                # Enhanced decay for extreme values (above 0.8)
+                # This prevents emotions from staying at 100% for too long
+                if value > 0.8:
+                    # Increase decay rate by 3x for extreme values (was 2x)
+                    decay_rate = decay_rate * 3.0
+                elif value > 0.6:
+                    # Moderate increase for high values
+                    decay_rate = decay_rate * 1.5
+            
             # Decay toward baseline (not zero)
             delta = baseline_value - value
+            # Ensure decay always moves toward baseline
             decay_amount = delta * decay_rate * dt
+            
+            # Clamp the decay amount to prevent overshooting
+            if delta > 0:
+                # Moving up toward baseline
+                decay_amount = min(decay_amount, delta)
+            else:
+                # Moving down toward baseline
+                decay_amount = max(decay_amount, delta)
 
             new_emotions[emotion] = value + decay_amount
 
@@ -225,13 +263,16 @@ class EmotionPhysics:
 
             relationships = EMOTION_RELATIONSHIPS.get(emotion, {})
 
-            # Amplification (resonance)
+            # Amplification (resonance) - reduced to prevent feedback loops
             for target, strength in relationships.get("amplifies", []):
                 if target in new_emotions:
-                    amplification = value * strength * dt * 0.5  # Scale factor
-                    new_emotions[target] = min(1.0, new_emotions[target] + amplification)
+                    # Reduced scale factor and only amplify if target is below 0.7
+                    # This prevents extreme values from amplifying each other
+                    if new_emotions[target] < 0.7:
+                        amplification = value * strength * dt * 0.2  # Reduced from 0.5
+                        new_emotions[target] = min(1.0, new_emotions[target] + amplification)
 
-            # Suppression
+            # Suppression - keep as is, helps reduce extreme values
             for target, strength in relationships.get("suppresses", []):
                 if target in new_emotions:
                     suppression = value * strength * dt * 0.5  # Scale factor
@@ -273,7 +314,9 @@ class EmotionPhysics:
 
         for emotion, delta in influence.items():
             if emotion in emotions:
-                new_value = emotions[emotion] + (delta * intensity)
+                current_value = emotions[emotion]
+                # Allow emotions to reach 100% - removed diminishing returns
+                new_value = current_value + (delta * intensity)
                 emotions[emotion] = max(0.0, min(1.0, new_value))
 
         return EmotionVector(**emotions)

@@ -1,10 +1,13 @@
 """Chat API with full orchestration."""
 
 from typing import Any
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
+from aura.db.client import get_db_client
 
 router = APIRouter()
 
@@ -43,6 +46,9 @@ class ChatRequest(BaseModel):
     conversation_history: list[ChatMessage] = Field(default_factory=list)
     stream: bool = Field(default=False, description="Stream response")
     
+    # Optional context for persistence
+    conversation_id: str | None = Field(default=None, description="Conversation ID to save to")
+    
     # Advanced options (from frontend settings)
     context_limit: int | None = Field(default=None, ge=5, le=999, description="Max conversation history")
     enable_l2: bool | None = Field(default=None, description="Enable L2 post-analysis")
@@ -79,16 +85,65 @@ async def send_message(request: ChatRequest) -> ChatResponse:
         ]
 
         # Process through orchestrator with optional settings
+        # user_id should be the commander identity from frontend (e.g., "Mai")
         response = await orchestrator.process_query(
             user_input=request.message,
-            user_id=request.user_id,
+            user_id=request.user_id,  # Commander identity from frontend settings
             conversation_history=history,
             context_limit=request.context_limit,
             enable_l2_analysis=request.enable_l2,
+            conversation_id=request.conversation_id,
         )
 
         # Get current emotional state for response
         emotional_state = await orchestrator.emotion_engine.get_current_state()
+
+        # Save to database if conversation_id is provided
+        if request.conversation_id:
+            db = get_db_client()
+            now = datetime.utcnow().isoformat()
+            
+            # 1. Save User Message
+            user_msg_id = f"message:{int(datetime.utcnow().timestamp() * 1000)}"
+            await db.create(
+                user_msg_id,
+                {
+                    "conversation_id": request.conversation_id,
+                    "content": request.message,
+                    "role": "user",
+                    "timestamp": now,
+                },
+            )
+            
+            # 2. Save Aura Response
+            aura_msg_id = f"message:{int(datetime.utcnow().timestamp() * 1000) + 1}"
+            await db.create(
+                aura_msg_id,
+                {
+                    "conversation_id": request.conversation_id,
+                    "content": response,
+                    "role": "assistant",
+                    "timestamp": now,
+                },
+            )
+            
+            # 3. Update Conversation (count + timestamp)
+            await db.query(
+                """
+                UPDATE $conv_id SET 
+                    message_count += 2,
+                    updated_at = $now,
+                    final_emotion = $emotion
+                """,
+                {
+                    "conv_id": request.conversation_id, 
+                    "now": now,
+                    "emotion": {
+                        "dominant": emotional_state.dominant[0],
+                        "description": emotional_state.description
+                    }
+                },
+            )
 
         return ChatResponse(
             success=True,

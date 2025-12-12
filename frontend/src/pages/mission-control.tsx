@@ -1,36 +1,69 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 import EmotionRadar from "@/components/emotion/EmotionRadar";
 import CognitiveStatus from "@/components/cognitive/CognitiveStatus";
 import MemoryStream from "@/components/memory/MemoryStream";
 import SettingsPanel from "@/components/settings/SettingsPanel";
 import { AuraStatus, ChatMessage, EmotionState, Memory, WebSocketEvent } from "@/types/aura";
-import { Send, Terminal, Power, Activity, Maximize2, Minimize2 } from "lucide-react";
+import { Send, Terminal, Power, Activity, Maximize2, Minimize2, Target, ArrowLeft, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { auraApi } from "@/services/auraApiService";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 
 function MissionControlContent() {
+  const router = useRouter();
   const { settings } = useSettings();
   const [input, setInput] = useState("");
-  const [expandedPanel, setExpandedPanel] = useState<'emotion' | 'cognitive' | 'memory' | null>(null);
+  const [expandedPanel, setExpandedPanel] = useState<'emotion' | 'cognitive' | 'memory' | 'goals' | null>(null);
   
   // Default "Zero" State - Aura at rest
   const [status, setStatus] = useState<AuraStatus>({
     online: true,
     emotion: {
-      joy: 0.5,
-      trust: 0.5,
+      // Primary Emotions (9)
+      love: 0.2,
+      joy: 0.3,
+      interest: 0.4,
+      trust: 0.3,
       fear: 0.1,
-      surprise: 0.1,
       sadness: 0.1,
-      disgust: 0.0,
       anger: 0.0,
+      surprise: 0.1,
+      disgust: 0.0,
+      
+      // Aesthetic Emotions (6)
+      awe: 0.2,
+      beauty: 0.15,
+      wonder: 0.25,
+      serenity: 0.2,
+      melancholy: 0.1,
+      nostalgia: 0.1,
+      
+      // Social Emotions (6)
+      empathy: 0.3,
+      gratitude: 0.2,
+      pride: 0.1,
+      shame: 0.0,
+      envy: 0.0,
+      compassion: 0.25,
+      
+      // Cognitive Emotions (6)
+      curiosity: 0.4,
+      confusion: 0.1,
+      certainty: 0.2,
+      doubt: 0.1,
+      fascination: 0.3,
+      boredom: 0.0,
+      
+      // Legacy: anticipation (optional, calculated from interest + curiosity)
       anticipation: 0.4,
+      
+      // Meta-State
       current_state: "CURIOSITY",
-      dominant: "anticipation",
+      dominant: "curiosity",
       valence: 0.3,
       arousal: 0.4,
       entropy: 0.15,
@@ -84,6 +117,19 @@ function MissionControlContent() {
     }
   }, []);
 
+  // Fetch active goals
+  const fetchGoals = useCallback(async () => {
+    try {
+      const goals = await auraApi.getActiveGoals();
+      setStatus(prev => ({
+        ...prev,
+        active_goals: goals,
+      }));
+    } catch (error) {
+      console.error('Failed to fetch goals:', error);
+    }
+  }, []);
+
   // Fetch memories
   const fetchMemories = useCallback(async () => {
     try {
@@ -121,25 +167,11 @@ function MissionControlContent() {
             const message: WebSocketEvent = JSON.parse(event.data);
             
             switch (message.type) {
-              case 'emotion_state':
               case 'emotion_update':
                 // Update emotion state from WebSocket
-                if (message.data && message.data.vector) {
-                  const emotionData: EmotionState = {
-                    ...message.data.vector,
-                    current_state: message.data.description || 'Unknown',
-                    dominant: message.data.dominant?.emotion || 'neutral',
-                    valence: message.data.vector.valence || 0,
-                    arousal: message.data.vector.arousal || 0,
-                    entropy: message.data.volatility || 0,
-                  } as EmotionState;
-                  
-                  setStatus(prev => ({ ...prev, emotion: emotionData }));
+                if (message.data) {
+                  setStatus(prev => ({ ...prev, emotion: message.data as EmotionState }));
                 }
-                break;
-                
-              case 'heartbeat':
-                // Connection is alive
                 break;
                 
               default:
@@ -189,16 +221,19 @@ function MissionControlContent() {
     fetchStatus();
     fetchEmotionState();
     fetchMemories();
+    fetchGoals();
     
     // Fallback polling (less frequent since we have WebSocket)
     const statusInterval = setInterval(fetchStatus, 10000); // 10s
     const memoriesInterval = setInterval(fetchMemories, 30000); // 30s
+    const goalsInterval = setInterval(fetchGoals, 15000); // 15s
     
     return () => {
       clearInterval(statusInterval);
       clearInterval(memoriesInterval);
+      clearInterval(goalsInterval);
     };
-  }, [fetchStatus, fetchEmotionState, fetchMemories]);
+  }, [fetchStatus, fetchEmotionState, fetchMemories, fetchGoals]);
 
   // Send message handler
   const handleSend = async () => {
@@ -309,6 +344,13 @@ function MissionControlContent() {
         className="border-b border-green-900/50 p-4 flex justify-between items-center bg-black/50 backdrop-blur-md z-10"
       >
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push('/chat')}
+            className="p-2 hover:bg-green-900/20 rounded transition-colors border border-green-900/30 hover:border-green-700/50"
+            title="Back to Chat"
+          >
+            <ArrowLeft className="text-green-500" size={20} />
+          </button>
           <Terminal className="text-green-500" size={24} />
           <div>
             <h1 className="font-bold tracking-widest text-lg">
@@ -322,6 +364,14 @@ function MissionControlContent() {
         </div>
         
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push('/chat')}
+            className="flex items-center gap-2 px-4 py-2 bg-green-900/20 hover:bg-green-900/30 border border-green-900/50 hover:border-green-700/50 rounded transition-colors text-green-400 hover:text-green-300"
+            title="Go to Chat"
+          >
+            <MessageSquare size={18} />
+            <span className="text-sm font-mono">CHAT</span>
+          </button>
           {/* Connection Status */}
           <div className="flex items-center gap-2 text-xs font-mono">
             <Activity size={14} className={isConnected ? 'text-green-400' : 'text-red-400'} />
@@ -405,6 +455,95 @@ function MissionControlContent() {
             </button>
             <MemoryStream memories={memories} maxEntries={10} />
           </div>
+
+          {/* Goals Panel */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="relative bg-black/40 border border-purple-900/50 rounded-lg p-3 backdrop-blur-sm"
+          >
+            <button
+              onClick={() => setExpandedPanel(expandedPanel === 'goals' ? null : 'goals')}
+              className="absolute top-2 right-2 z-20 p-1 bg-black/60 border border-purple-900/50 rounded hover:bg-purple-900/30 transition-colors"
+              title="Expand goals panel"
+            >
+              {expandedPanel === 'goals' ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            </button>
+            <div className="flex items-center gap-2 mb-3">
+              <Target size={16} className="text-purple-500" />
+              <h3 className="text-sm font-mono font-bold text-purple-400">GOAL_ENGINE</h3>
+            </div>
+            <div className="text-xs font-mono space-y-2">
+              <div>
+                <span className="text-gray-500">ACTIVE_GOALS:</span>{' '}
+                <span className="text-purple-300 font-bold">{status.active_goals.length}</span>
+              </div>
+              {status.active_goals.length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                  {status.active_goals.map((goal) => (
+                    <div
+                      key={goal.goal_id}
+                      className="p-2 bg-black/30 border border-purple-900/30 rounded text-[10px] group hover:bg-black/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-bold text-purple-300 flex-1 break-words">{goal.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-purple-500">{(goal.priority * 100).toFixed(0)}%</span>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Delete goal "${goal.name}"?`)) {
+                                try {
+                                  await auraApi.deleteGoal(goal.goal_id);
+                                  fetchGoals(); // Refresh goals
+                                } catch (error) {
+                                  console.error('Failed to delete goal:', error);
+                                }
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300"
+                            title="Delete goal"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-gray-400 text-[9px] mb-1 break-words whitespace-pre-wrap">
+                        {goal.description}
+                      </div>
+                      <div className="flex items-center justify-between text-[8px] text-gray-500">
+                        <span>{goal.goal_type}</span>
+                        <span>{Math.round(goal.progress * 100)}% complete</span>
+                      </div>
+                      {(() => {
+                        const reasoning = goal.metadata?.reasoning;
+                        return reasoning && typeof reasoning === 'string' ? (
+                          <div className="text-[8px] text-gray-600 mt-1 italic break-words whitespace-pre-wrap">
+                            {reasoning}
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[10px] text-gray-500 py-4 text-center">
+                  No active goals. Waiting for goal generation...
+                </div>
+              )}
+              <button
+                onClick={async () => {
+                  const newGoal = await auraApi.generateGoal('user_requested');
+                  if (newGoal) {
+                    fetchGoals();
+                  }
+                }}
+                className="w-full mt-2 px-2 py-1.5 bg-purple-900/30 border border-purple-700/50 rounded text-[10px] font-mono text-purple-300 hover:bg-purple-900/50 transition-colors"
+              >
+                + GENERATE GOAL
+              </button>
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* CENTER/RIGHT COLUMN: CHAT INTERFACE */}

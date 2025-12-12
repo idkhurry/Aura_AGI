@@ -83,6 +83,7 @@ class MemoryManager:
         limit: int = 10,
         emotional_filter: dict[str, float] | None = None,
         importance_min: float = 0.0,
+        user_id: str | None = None,
     ) -> list[Memory]:
         """
         Retrieve memories using hybrid search.
@@ -91,39 +92,60 @@ class MemoryManager:
         1. Semantic search via embedding similarity
         2. Emotional filtering
         3. Importance weighting
+        4. User filtering
 
         Args:
             query: Search query
             limit: Maximum memories to return
             emotional_filter: Filter by emotional signature
             importance_min: Minimum importance threshold
+            user_id: Filter by user identifier
 
         Returns:
             List of relevant memories
         """
         try:
-            # Generate query embedding
-            query_embedding = await self.embeddings.embed(query)
-
-            # TODO: Implement vector similarity search when SurrealDB supports it
-            # For now, use text-based filtering
+            # Generate query embedding only if query is not empty
+            query_embedding = None
+            if query and query.strip():
+                query_embedding = await self.embeddings.embed(query)
 
             conditions = [f"importance >= {importance_min}"]
+            
+            # Filter by user_id if provided
+            if user_id:
+                conditions.append(f"user_id = '{user_id}'")
+            
             where_clause = " AND ".join(conditions) if conditions else "true"
 
-            result = await self.db.query(
-                f"""
-                SELECT * FROM memory
-                WHERE {where_clause}
-                ORDER BY importance DESC, timestamp DESC
-                LIMIT {limit}
-                """
-            )
+            if query_embedding:
+                # Use vector similarity search (cosine similarity)
+                # Note: SurrealDB vector search
+                result = await self.db.query(
+                    f"""
+                    SELECT *, vector::similarity::cosine(embedding, $query_embedding) AS relevance
+                    FROM memory
+                    WHERE {where_clause}
+                    ORDER BY relevance DESC, importance DESC
+                    LIMIT {limit}
+                    """,
+                    {"query_embedding": query_embedding}
+                )
+            else:
+                # Fallback to text-based filtering (no embedding)
+                result = await self.db.query(
+                    f"""
+                    SELECT * FROM memory
+                    WHERE {where_clause}
+                    ORDER BY importance DESC, timestamp DESC
+                    LIMIT {limit}
+                    """
+                )
 
-            if not result or not result[0]["result"]:
+            if not result:
                 return []
 
-            memories = [Memory(**mem_data) for mem_data in result[0]["result"]]
+            memories = [Memory(**mem_data) for mem_data in result]
 
             logger.debug(f"Retrieved {len(memories)} memories")
             return memories
@@ -160,10 +182,10 @@ class MemoryManager:
                 """
             )
 
-            if not result or not result[0]["result"]:
+            if not result:
                 return []
 
-            memories = [Memory(**mem_data) for mem_data in result[0]["result"]]
+            memories = [Memory(**mem_data) for mem_data in result]
 
             logger.debug(
                 f"Found {len(memories)} memories with {emotion_name} >= {threshold}"
